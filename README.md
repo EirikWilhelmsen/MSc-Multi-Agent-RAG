@@ -20,11 +20,6 @@ pip install -r requirements.txt
 ## Notes
 This github repository aims to follow the IAI guidelines[^1]
 
-## Overleaf Report
-https://www.overleaf.com/read/frgzbzcjpxdh#5082c0
-
 
 ---
-[^1: https://github.com/iai-group/guidelines/tree/main/python]
-
-
+[^1]: https://github.com/iai-group/guidelines/tree/main/python
