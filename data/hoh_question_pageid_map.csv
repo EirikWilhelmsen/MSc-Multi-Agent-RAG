@@ -1,0 +1,101 @@
+qid,question,pageid,title,current_time,outdated_info_dates
+1,What is the name of the yeast that can be used to ferment gluconolactone to ethanol and carbon dioxide?,1000005,Glucono delta-lactone,2024-07-01T00:00:00Z,2024-06-01T00:00:00Z
+2,What was the median income in Otago compared to the national median income?,100011,Otago,2024-11-01T00:00:00Z,2024-10-01T00:00:00Z
+3,What percentage of people at least 15 years old were employed full-time?,100011,Otago,2024-11-01T00:00:00Z,2024-10-01T00:00:00Z
+4,What percentage of people at least 15 years old had a bachelor's or higher degree?,100011,Otago,2024-11-01T00:00:00Z,2024-10-01T00:00:00Z
+5,"What percentage of people in Otago were born overseas, compared to the national percentage?",100011,Otago,2024-11-01T00:00:00Z,2024-10-01T00:00:00Z
+6,How many people in Otago were aged under 15 years?,100011,Otago,2024-11-01T00:00:00Z,2024-10-01T00:00:00Z
+7,Who is the current Master of the Horse?,1000214,Master of the Horse,2024-07-01T00:00:00Z,2024-06-01T00:00:00Z
+8,What is the estimated lower bound of the number of dead across France during the St. Bartholomew's Day massacre?,1000232,Genocides in history (before World War I),2024-09-01T00:00:00Z,2024-08-01T00:00:00Z
+9,"In what year did Shi Min seize control of the emperor and capital, Ye through a coup?",1000232,Genocides in history (before World War I),2024-11-01T00:00:00Z,2024-10-01T00:00:00Z
+10,What is the time period for which the football team was classified by the NJSIAA as Group I South for football?,10002689,Wildwood High School,2024-10-01T00:00:00Z,2024-09-01T00:00:00Z
+11,What was Aaron Gibson's weight in high school?,10002729,Aaron Gibson,2024-09-01T00:00:00Z,2024-08-01T00:00:00Z
+12,"What television network did Jill Whelan work for as an associate producer when she met her first husband, Brad St. John?",1000284,Jill Whelan,2024-11-01T00:00:00Z,2024-10-01T00:00:00Z
+13,Against which campaign did Sargon work to retain the loyalty of his northern vassals and curb the influence of Elam following?,100041,Sargon II,2024-11-01T00:00:00Z,2024-10-01T00:00:00Z
+14,In what year did the Magyars besiege Cambrai?,100048,Cambrai,2024-11-01T00:00:00Z,2024-10-01T00:00:00Z
+15,How old was Myrta Silva when she died?,1000539,Myrta Silva,2024-07-01T00:00:00Z,2024-06-01T00:00:00Z
+16,Who is the current chief of the Fullerton Police Department?,10005861,Fullerton Police Department,2024-12-01T00:00:00Z,2024-11-01T00:00:00Z
+17,What instruments are available at the 3.6 m telescope?,1000624,La Silla Observatory,2024-07-01T00:00:00Z,2024-06-01T00:00:00Z
+18,How many grass runways does Whanganui Airport have?,10006445,Whanganui Airport,2024-10-01T00:00:00Z,2024-09-01T00:00:00Z
+19,Until what year did the Q64 operate from the MTA's College Point Depot?,10006976,Bus depots of MTA Regional Bus Operations,2024-11-01T00:00:00Z,2024-10-01T00:00:00Z
+20,In what year did Orion Bus Industries agree to buy back the burned hulk of fleet no. 401 from Torrance?,10007452,Torrance Transit,2024-11-01T00:00:00Z,2024-10-01T00:00:00Z
+21,How many authors have won the Andre Norton Award during the 19 nomination years?,10008637,Andre Norton Award,2024-07-01T00:00:00Z,2024-06-01T00:00:00Z
+22,What are the main organizational units of UNT and how many professional entities do they contain?,10008692,National University of Trujillo,2024-12-01T00:00:00Z,2024-11-01T00:00:00Z
+23,What was the monthly membership fee for Griddy's energy services in Texas?,10009627,Griddy (company),2024-12-01T00:00:00Z,2024-11-01T00:00:00Z
+24,In what year did Valparaiso University close the Law School?,1001108,Valparaiso University,2024-07-01T00:00:00Z,2024-06-01T00:00:00Z
+25,"What is the Metacritic score of the film ""Repulsion"" based on 8 reviews?",1001142,Repulsion (film),2024-09-01T00:00:00Z,2024-08-01T00:00:00Z
+26,What is the nearest airport to Kuppalli?,10011527,Kuppalli,2024-11-01T00:00:00Z,2024-10-01T00:00:00Z
+27,How many people are on the municipal council of Schaan?,1001154,Schaan,2024-10-01T00:00:00Z,2024-09-01T00:00:00Z
+28,Which serpent helps the king tie the boat to the fish's horn?,100119,Matsya,2024-08-01T00:00:00Z,2024-07-01T00:00:00Z
+29,Who stayed friends with the Garbutts for life?,10011984,Pegi Nicol MacLeod,2024-11-01T00:00:00Z,2024-10-01T00:00:00Z
+30,"Who are the four emanations in the variant of Caturvyuha mentioned in the ""Narada Purana""?",100123,Varaha,2024-11-01T00:00:00Z,2024-10-01T00:00:00Z
+31,What type of large venue does Lorimer Hall contain?,10012934,"Schutz American School, Alexandria",2024-10-01T00:00:00Z,2024-09-01T00:00:00Z
+32,How many faculty members are there at Schutz American School?,10012934,"Schutz American School, Alexandria",2024-10-01T00:00:00Z,2024-09-01T00:00:00Z
+33,What organizations are offered by Schutz for its students that are related to honor or academic achievement?,10012934,"Schutz American School, Alexandria",2024-10-01T00:00:00Z,2024-09-01T00:00:00Z
+34,In what year did Claus meet Princess Beatrix for the first time?,100131,Prince Claus of the Netherlands,2024-07-01T00:00:00Z,2024-06-01T00:00:00Z
+35,What are Sierra Marjory Boggess' professions?,10013692,Sierra Boggess,2024-08-01T00:00:00Z,2024-07-01T00:00:00Z
+36,In which Yuga is Vamana the first Dashavatara?,100137,Vamana,2024-07-01T00:00:00Z,2024-06-01T00:00:00Z
+37,How many students were in the first group of the fully funded Foundation Year scheme launched by Lady Margaret Hall?,1001464,Alan Rusbridger,2024-09-01T00:00:00Z,2024-08-01T00:00:00Z
+38,What percentage of the Tamang people are Hindu and Christian?,1001489,Tamang people,2024-07-01T00:00:00Z,2024-06-01T00:00:00Z
+39,What religion have the Tamang people followed for thousands of years?,1001489,Tamang people,2024-07-01T00:00:00Z,2024-06-01T00:00:00Z
+40,What percentage of the Tamang people are Buddhist and what percentage are Christians?,1001489,Tamang people,2024-10-01T00:00:00Z,2024-09-01T00:00:00Z
+41,What is the name of the significant religious festival based on the birthday of Gautam Buddha?,1001489,Tamang people,2024-11-01T00:00:00Z,2024-10-01T00:00:00Z
+42,How old was Bobby Darin's mother at the time of his birth?,100161,Bobby Darin,2024-08-01T00:00:00Z,2024-07-01T00:00:00Z
+43,Where was Gerry Morrissey born?,10016911,Gerry Morrissey,2024-11-01T00:00:00Z,2024-10-01T00:00:00Z
+44,How many schools does the university have?,10018536,Central University (Ghana),2024-12-01T00:00:00Z,2024-11-01T00:00:00Z
+45,What is the name of the biggest ultras group associated with SCFB?,1001858,Ultras,2024-12-01T00:00:00Z,2024-11-01T00:00:00Z
+46,"What time period are the ancient Lakshmi terracotta figurines from at the archaeological sites of Vaisali, Sravasti, Kausambi, Campa, and Candraketugadh?",100191,Lakshmi,2024-11-01T00:00:00Z,2024-10-01T00:00:00Z
+47,"What was the occupation or social status of Vasudeva's father, Shurasena?",100221,Vasudeva,2024-09-01T00:00:00Z,2024-07-01T00:00:00Z;2024-08-01T00:00:00Z
+48,What percentage of Siddis from Gujarat and Karnataka belonged to various Bantu-derived macro-haplogroup L subclades?,1002215,Siddi,2024-08-01T00:00:00Z,2024-07-01T00:00:00Z
+49,How many tries did Marcello Cuttitta score for the Italian National team?,10022163,Marcello Cuttitta,2024-07-01T00:00:00Z,2024-06-01T00:00:00Z
+50,How many conventional routes does Belleville Transit operate?,10022278,Belleville Transit,2024-10-01T00:00:00Z,2024-09-01T00:00:00Z
+51,How many Nova Bus LFS buses are in the fleet?,10022278,Belleville Transit,2024-10-01T00:00:00Z,2024-09-01T00:00:00Z
+52,What was the title of the other opera for which Zweig collaborated with Joseph Gregor to provide the libretto for Richard Strauss?,100224,Stefan Zweig,2024-10-01T00:00:00Z,2024-09-01T00:00:00Z
+53,"How many names of Radha are mentioned in the fifth chapter of the Sanskrit scripture ""Narada Pancharatra"" under the title ""Shri Radha Saharsnama Strotam""?",100225,Radha,2024-09-01T00:00:00Z,2024-08-01T00:00:00Z
+54,"Which French club, apart from Marseille, would be the next to reach the UEFA Champions League final?",10022544,1993 UEFA Champions League final,2024-10-01T00:00:00Z,2024-09-01T00:00:00Z
+55,How many years did Ravana and his two brothers perform penance on Mount Gokarna to win boons from Brahma?,100234,Ravana,2024-10-01T00:00:00Z,2024-09-01T00:00:00Z
+56,When did freeze dried candy see a major surge in popularity?,1002536,Freeze drying,2024-12-01T00:00:00Z,2024-11-01T00:00:00Z
+57,What is the enrollment at Montgomery County High School?,10026167,Montgomery County High School (Kentucky),2024-07-01T00:00:00Z,2024-06-01T00:00:00Z
+58,What is the impact factor of the Journal of Luminescence?,10028510,Journal of Luminescence,2024-12-01T00:00:00Z,2024-11-01T00:00:00Z
+59,Which team does Grzegorz Kmiecik play for as a striker?,10029215,Grzegorz Kmiecik,2024-11-01T00:00:00Z,2024-10-01T00:00:00Z
+60,How many subway lines are currently operating in the Chengdu Metro system?,10029370,Chengdu Metro,2024-11-01T00:00:00Z,2024-10-01T00:00:00Z
+61,How many students are enrolled in Rizal Technological University from both campuses?,10029427,Rizal Technological University,2024-09-01T00:00:00Z,2024-08-01T00:00:00Z
+62,How many total Tony Award nominations has Natasha Katz received?,10030522,Natasha Katz,2024-08-01T00:00:00Z,2024-07-01T00:00:00Z
+63,Where was drummer Paul Lawton killed in a wood chipper?,1003071,The Irish Rovers,2024-11-01T00:00:00Z,2024-10-01T00:00:00Z
+64,What years did Gesalec rule?,10031794,History of Barcelona,2024-11-01T00:00:00Z,2024-10-01T00:00:00Z
+65,"Which countries, in addition to the Schengen Area, can citizens of Montenegro enter without a visa when traveling with biometric passports?",10038125,Accession of Montenegro to the European Union,2024-08-01T00:00:00Z,2024-07-01T00:00:00Z
+66,What is Tsui Hark's birthdate?,100385,Tsui Hark,2024-11-01T00:00:00Z,2024-09-01T00:00:00Z;2024-10-01T00:00:00Z
+67,What regions were annexed by the Ottomans from Safavid Iran following the Battle of Chaldiran?,1003888,Battle of Chaldiran,2024-09-01T00:00:00Z,2024-08-01T00:00:00Z
+68,In which state was Jim Mitchell born?,10040249,Jim Mitchell (tight end),2024-10-01T00:00:00Z,2024-09-01T00:00:00Z
+69,What years is the football team classified by the NJSIAA as Group IV South for football?,10040477,Clearview Regional High School,2024-10-01T00:00:00Z,2024-09-01T00:00:00Z
+70,What is Wladimir Klitschko's ranking among the greatest boxers of all time?,10041734,Klitschko brothers,2024-12-01T00:00:00Z,2024-11-01T00:00:00Z
+71,What percentage of the vote did Michael Hillert receive in his election?,10042132,Dettingen an der Erms,2024-08-01T00:00:00Z,2024-07-01T00:00:00Z
+72,What is the population of Ilvesheim?,10042294,Ilvesheim,2024-07-01T00:00:00Z,2024-06-01T00:00:00Z
+73,How many smaller groups of birds are involved in the captive breeding program for the orange-bellied parrot?,1004258,Orange-bellied parrot,2024-09-01T00:00:00Z,2024-08-01T00:00:00Z
+74,Who is the current President of the Los Angeles City Council?,1004300,Los Angeles City Council,2024-10-01T00:00:00Z,2024-09-01T00:00:00Z
+75,Who is the current President pro Tempore of the Los Angeles City Council?,1004300,Los Angeles City Council,2024-10-01T00:00:00Z,2024-09-01T00:00:00Z
+76,"In what year did Ryle first introduce the notion of ""thick description"" in ""The Thinking of Thoughts: What is 'Le Penseur' Doing?""?",1004355,Gilbert Ryle,2024-11-01T00:00:00Z,2024-10-01T00:00:00Z
+77,What is the potential annual adjustment percentage for adjustable-rate mortgages (ARMs) taken out by many subprime borrowers?,10043800,Subprime lending,2024-11-01T00:00:00Z,2024-10-01T00:00:00Z
+78,What studio does Red Hour currently have an exclusive first-look feature deal with?,10043955,Red Hour Productions,2024-09-01T00:00:00Z,2024-08-01T00:00:00Z
+79,How many days did the film Mungaru Male run for in the history of Karnataka?,10044747,Mungaru Male,2024-07-01T00:00:00Z,2024-06-01T00:00:00Z
+80,What type of spirit did José Bedia Valdés receive at his initiation into Palo?,1004529,Palo (religion),2024-08-01T00:00:00Z,2024-07-01T00:00:00Z
+81,What were the nationalities of Cristina García's parents?,10045292,Cristina García (journalist),2024-07-01T00:00:00Z,2024-06-01T00:00:00Z
+82,Where was Anne initially trying to sail to when her efforts were thwarted by storms?,10045895,Sexuality of James VI and I,2024-11-01T00:00:00Z,2024-10-01T00:00:00Z
+83,What is the name of Ji Cheong-cheon's father?,10046840,Ji Cheong-cheon,2024-11-01T00:00:00Z,2024-10-01T00:00:00Z
+84,In what year did James Horne Stewart build Abercrombie House?,10046962,Abercrombie House,2024-08-01T00:00:00Z,2024-07-01T00:00:00Z
+85,Which Gaelic games championship does Marty Morrissey regularly present for RTÉ Sport?,10048445,Marty Morrissey,2024-12-01T00:00:00Z,2024-11-01T00:00:00Z
+86,How many countries are member states of the BIE?,100488,Bureau International des Expositions,2024-07-01T00:00:00Z,2024-06-01T00:00:00Z
+87,How many member countries have adhered to the BIE Convention?,100488,Bureau International des Expositions,2024-07-01T00:00:00Z,2024-06-01T00:00:00Z
+88,How many of the nature reserves managed by Derbyshire Wildlife Trust are Sites of Special Scientific Interest (SSSIs)?,100491,Derbyshire Wildlife Trust,2024-08-01T00:00:00Z,2024-07-01T00:00:00Z
+89,"At what time did Captain Gibson feel a high frequency vibration in the balls of his feet while cruising near Saginaw, Michigan?",10049387,TWA Flight 841 (1979),2024-12-01T00:00:00Z,2024-11-01T00:00:00Z
+90,How many households are in the area of Tibberton parish?,10049994,"Tibberton, Gloucestershire",2024-08-01T00:00:00Z,2024-07-01T00:00:00Z
+91,"What is the population of the parish of Tibberton, Gloucestershire?",10049994,"Tibberton, Gloucestershire",2024-08-01T00:00:00Z,2024-07-01T00:00:00Z
+92,What is the name of the abandoned coal mine over which the school was built?,10050752,Lomagundi College,2024-12-01T00:00:00Z,2024-11-01T00:00:00Z
+93,What constituency is Ashcott part of in the House of Commons of the Parliament of the United Kingdom?,1005158,Ashcott,2024-08-01T00:00:00Z,2024-07-01T00:00:00Z
+94,How many locations does DataArt operate from?,10051916,DataArt,2024-10-01T00:00:00Z,2024-09-01T00:00:00Z
+95,In what year did Apple start using a variant of the Adobe Myriad font family in its marketing and packaging?,1005263,Typography of Apple Inc.,2024-08-01T00:00:00Z,2024-07-01T00:00:00Z
+96,What font number was used for the Univers font on Apple's keyboards?,1005263,Typography of Apple Inc.,2024-09-01T00:00:00Z,2024-08-01T00:00:00Z
+97,"What law repealed the ban on the sale or shipment of ""T. natans"" in the United States?",1005365,Water caltrop,2024-09-01T00:00:00Z,2024-08-01T00:00:00Z
+98,How old was Durgananda Jha at the time of his execution?,10054261,Durgananda Jha,2024-09-01T00:00:00Z,2024-08-01T00:00:00Z
+99,What is the lower bound of the student enrollment range for schools classified as Group III North for football?,10055699,West Milford High School,2024-10-01T00:00:00Z,2024-09-01T00:00:00Z
+100,How many league schools are currently involved in the SEC men's basketball tournament?,10056215,SEC men's basketball tournament,2024-07-01T00:00:00Z,2024-06-01T00:00:00Z

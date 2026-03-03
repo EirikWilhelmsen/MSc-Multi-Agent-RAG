@@ -18,8 +18,13 @@ pip install -r requirements.txt
 ```
 
 ## Notes
-This github repository aims to follow the IAI guidelines[^1]
+This repository is developed in accordance with the IAI guidelines[^1] and the IAI Python style guide[^2].
+
+27.feb -> create statistics for edge cases (several outdated, several new, etc)
+KB folder structure by month
+
 
 
 ---
-[^1]: https://github.com/iai-group/guidelines/tree/main/python
+[^1]: https://github.com/iai-group/guidelines
+[^2]: https://github.com/iai-group/guidelines/tree/main/python
