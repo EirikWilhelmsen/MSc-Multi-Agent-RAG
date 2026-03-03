@@ -1,5 +1,7 @@
 Article Counts:
-2 file(s): 80 PageIDs
-3 file(s): 3 PageIDs
-4 file(s): 1 PageIDs
-5 file(s): 1 PageIDs
+2 dato(er): 81979 dokumenter
+3 dato(er): 4728 dokumenter
+4 dato(er): 2825 dokumenter
+5 dato(er): 662 dokumenter
+6 dato(er): 243 dokumenter
+7 dato(er): 134 dokumenter

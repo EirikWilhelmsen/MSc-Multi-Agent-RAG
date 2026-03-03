@@ -1,34 +1,25 @@
+import json
 from collections import Counter
-from pathlib import Path
 
-# NY root i stedet for _new / _outdated
-path_kb = "../data/KB_raw/"
+INPUT_PATH = "../data/doc_times.json"
 
-def count_duplicate_articles(path):
-    """
-    Count the number of articles that appear multiple times in a given path.
-    Works with new structure: KB_raw/YYYY-MM-DD/pageid_revid.wikitext.txt
-    """
 
-    file_counts = Counter()
 
-    # Gå rekursivt gjennom alle dato-mapper
-    for file in Path(path).glob("**/*.wikitext.txt"):
-        parts = file.stem.split("_")
+def main():
+    with open(INPUT_PATH, "r", encoding="utf-8") as f:
+        data = json.load(f)
 
-        # Filnavn er nå: pageid_revid.wikitext.txt
-        # file.stem blir: pageid_revid.wikitext → vi vil ha pageid
-        if len(parts) >= 1:
-            page_id = parts[0]
-            file_counts[page_id] += 1
+    counter = Counter()
 
-    duplicate_counts = Counter(file_counts.values())
+    for doc_id, dates in data.items():
+        counter[len(dates)] += 1
 
-    with open("statistics.txt", "w") as f:
+    duplicate_counts = Counter(counter.values())
+    with open("statistics.txt", "w", encoding="utf-8") as f:
         f.write("Article Counts:\n")
-        for count in sorted(duplicate_counts.keys()):
-            f.write(f"{count} file(s): {duplicate_counts[count]} PageIDs\n")
+        for num_dates in sorted(counter.keys()):
+            f.write(f"{num_dates} dato(er): {counter[num_dates]} dokumenter\n")
 
 
 if __name__ == "__main__":
-    duplicate_counts = count_duplicate_articles(path_kb)
+    main()

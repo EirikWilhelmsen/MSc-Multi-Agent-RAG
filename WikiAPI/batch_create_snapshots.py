@@ -1,104 +1,160 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import json
+import os
+import shutil
 import time
 from pathlib import Path
-import pandas as pd
 
-from wiki_snapshots_by_pageID_v2 import fetch_snapshot, save_snapshot  # juster ved behov
+from wiki_snapshots_by_pageID_v2 import fetch_snapshot, save_snapshot  # juster hvis nødvendig
 
-CSV_PATH = "../data/hoh_question_pageid_map.csv"
+DOC_TIMES_PATH = Path("../data/doc_times.json")  # pageid -> ["YYYY-MM-DD", ...]
 
-OUT_ROOT = Path("../data/KB_raw")  # NY: én rotmappe med dato-submapper
+OUT_ROOT = Path("../data/KB_raw")
+CACHE_DIR = OUT_ROOT / "_cache"
 
-SLEEP_SECONDS = 0.3
+SLEEP_SECONDS = 0.1
 MAX_REDIRECT_HOPS = 5
+USE_HARDLINKS = True
 
 
-def parse_dates(s: str) -> list[str]:
-    if pd.isna(s) or not str(s).strip():
-        return []
-    return [x.strip() for x in str(s).split(";") if x.strip()]
-
-
-def iso_to_ymd(ts: str) -> str:
-    """
-    Tar '2024-07-01T00:00:00Z' eller '2024-07-01' og returnerer '2024-07-01'
-    """
-    s = str(ts).strip()
-    if not s:
-        return ""
-    if "T" in s:
-        return s.split("T", 1)[0]
-    return s[:10]
-
-
-def safe_exists(out_dir: Path, base: str) -> bool:
-    return (out_dir / f"{base}.wikitext.txt").exists() and (out_dir / f"{base}.json").exists()
+def ensure_dir(p: Path) -> None:
+    p.mkdir(parents=True, exist_ok=True)
 
 
 def base_name(pageid: int, revid: int) -> str:
     return f"{pageid}_{revid}"
 
 
-def fetch_and_save(pageid: int, ts: str, label: str) -> tuple[bool, str]:
-    """
-    label kun for logging.
-    return (success, message)
-    """
-    res = fetch_snapshot(pageid, ts, max_redirect_hops=MAX_REDIRECT_HOPS)
+def safe_exists(out_dir: Path, base: str) -> bool:
+    return (out_dir / f"{base}.wikitext.txt").exists() and (out_dir / f"{base}.json").exists()
 
-    ymd = iso_to_ymd(ts)
-    if not ymd:
-        raise ValueError("Missing timestamp")
+
+def _link_or_copy(src: Path, dst: Path) -> None:
+    ensure_dir(dst.parent)
+    if dst.exists():
+        return
+
+    if USE_HARDLINKS:
+        try:
+            os.link(src, dst)
+            return
+        except Exception:
+            pass
+
+    shutil.copy2(src, dst)
+
+
+def materialize_from_cache(cache_base: str, out_dir: Path, out_base: str) -> None:
+    src_txt = CACHE_DIR / f"{cache_base}.wikitext.txt"
+    src_js = CACHE_DIR / f"{cache_base}.json"
+
+    if not src_txt.exists() or not src_js.exists():
+        raise RuntimeError(f"Cache missing for {cache_base}")
+
+    dst_txt = out_dir / f"{out_base}.wikitext.txt"
+    dst_js = out_dir / f"{out_base}.json"
+
+    _link_or_copy(src_txt, dst_txt)
+    _link_or_copy(src_js, dst_js)
+
+
+def save_snapshot_cached(res, pageid: int, snapshot_date_ymd: str) -> tuple[str, str, str]:
+    """
+    Lagrer snapshot til OUT_ROOT/YYYY-MM-DD/pageid_revid.*
+    Cache per (pageid,revid) i OUT_ROOT/_cache
+    """
+    ymd = snapshot_date_ymd.strip()
+    if not ymd or len(ymd) != 10:
+        raise ValueError(f"Invalid date (expected YYYY-MM-DD): {snapshot_date_ymd}")
 
     out_dir = OUT_ROOT / ymd
-    out_dir.mkdir(parents=True, exist_ok=True)
+    ensure_dir(out_dir)
+    ensure_dir(CACHE_DIR)
 
-    b = base_name(pageid, res.revid)
+    out_base = base_name(pageid, res.revid)
+    cache_base = out_base
 
-    if safe_exists(out_dir, b):
-        return (False, f"[{label} SKIP] {pageid} @ {ymd} revid={res.revid}")
+    if safe_exists(out_dir, out_base):
+        return ymd, out_base, "skip"
 
-    save_snapshot(res, str(out_dir), base=b)
-    time.sleep(SLEEP_SECONDS)
-    return (True, f"[{label} OK] {pageid} @ {ymd} revid={res.revid}")
+    if safe_exists(CACHE_DIR, cache_base):
+        materialize_from_cache(cache_base, out_dir, out_base)
+        return ymd, out_base, "cache_hit"
+
+    save_snapshot(res, str(CACHE_DIR), base=cache_base)
+    materialize_from_cache(cache_base, out_dir, out_base)
+    return ymd, out_base, "downloaded"
+
+
+def load_doc_times(path: Path) -> dict[int, list[str]]:
+    raw = json.loads(path.read_text(encoding="utf-8"))
+
+    out: dict[int, list[str]] = {}
+    for k, dates in raw.items():
+        try:
+            pid = int(k)
+        except Exception:
+            continue
+        if not isinstance(dates, list):
+            continue
+        # normalize: unique + sorted (valgfritt)
+        clean_dates = sorted({str(d).strip() for d in dates if str(d).strip()})
+        out[pid] = clean_dates
+
+    return out
 
 
 def main():
-    df = pd.read_csv(CSV_PATH)
+    if not DOC_TIMES_PATH.exists():
+        raise SystemExit(f"Finner ikke: {DOC_TIMES_PATH.resolve()}")
 
-    OUT_ROOT.mkdir(exist_ok=True)
+    doc_times = load_doc_times(DOC_TIMES_PATH)
+
+    ensure_dir(OUT_ROOT)
+    ensure_dir(CACHE_DIR)
+
+    total_tasks = sum(len(v) for v in doc_times.values())
+    print(f"Loaded doc_times: pageids={len(doc_times)}, total snapshots={total_tasks}")
 
     ok, skipped, failed = 0, 0, 0
+    cache_hits, downloaded = 0, 0
 
-    for _, row in df.iterrows():
-        pageid = int(row["pageid"])
-        current_time = str(row["current_time"]).strip()
-        outdated_times = parse_dates(row.get("outdated_info_dates", ""))
-
-        try:
-            did_save, msg = fetch_and_save(pageid, current_time, "NEW")
-            print(msg)
-            if did_save:
-                ok += 1
-            else:
-                skipped += 1
-        except Exception as e:
-            failed += 1
-            print(f"[NEW ERROR] {pageid} @ {current_time} -> {e}")
-
-        for ts in outdated_times:
+    for pageid, dates in doc_times.items():
+        for ymd in dates:
             try:
-                did_save, msg = fetch_and_save(pageid, ts, "OLD")
-                print(msg)
-                if did_save:
-                    ok += 1
-                else:
+                # fetch_snapshot forventer typisk ISO-timestamp eller en dato.
+                # Hvis din fetch_snapshot krever ISO, bruk f"{ymd}T00:00:00Z"
+                ts = f"{ymd}T00:00:00Z"
+
+                res = fetch_snapshot(pageid, ts, max_redirect_hops=MAX_REDIRECT_HOPS)
+                out_ymd, b, mode = save_snapshot_cached(res, pageid, ymd)
+
+                if mode == "skip":
                     skipped += 1
+                    print(f"[SKIP] {pageid} @ {out_ymd} revid={res.revid}")
+                elif mode == "cache_hit":
+                    ok += 1
+                    cache_hits += 1
+                    print(f"[OK cached] {pageid} @ {out_ymd} revid={res.revid}")
+                else:
+                    ok += 1
+                    downloaded += 1
+                    print(f"[OK] {pageid} @ {out_ymd} revid={res.revid}")
+
+                if SLEEP_SECONDS > 0:
+                    time.sleep(SLEEP_SECONDS)
+
             except Exception as e:
                 failed += 1
-                print(f"[OLD ERROR] {pageid} @ {ts} -> {e}")
+                print(f"[ERROR] {pageid} @ {ymd} -> {e}")
 
-    print(f"\nDone. ok={ok}, skipped={skipped}, failed={failed}")
+    print("\nDone.")
+    print(f"ok={ok}, skipped={skipped}, failed={failed}")
+    print(f"downloaded_from_api={downloaded}, materialized_from_cache={cache_hits}")
     print(f"Output root: {OUT_ROOT.resolve()}")
+    print(f"Cache dir:   {CACHE_DIR.resolve()}")
 
 
 if __name__ == "__main__":
