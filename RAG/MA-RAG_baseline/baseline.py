@@ -1,193 +1,221 @@
-from __future__ import annotations
-
 import csv
+import matplotlib.pyplot as plt
 import json
-import math
-import re
-from dataclasses import dataclass
-from datetime import datetime, timezone
+import time
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional
 from dotenv import load_dotenv
 import os
 
-load_dotenv()
+import requests
+from elasticsearch import Elasticsearch
 
-CSV_PATH = Path("data/hoh_question_pageid_map.csv")
-KB_NEW_DIR = Path("data/KB_chunked_new")
-KB_OLD_DIR = Path("data/KB_chunked_outdated")
+load_dotenv()  # Load environment variables from .env file
 
-OUT_CSV = Path("questions_with_retrieval.csv")
+# --- Configuration ---
+CSV_PATH = Path("../../data/hoh_question_pageid_map.csv")
+OUTPUT_PATH = Path("../../data/rag_baseline_results_v3.jsonl")
 
-OLLAMA_API = os.getenv("OLLAMA_API")
+ES_HOST = "http://localhost:9200"
+INDEX_NAME = "wikipedia_snapshots"
+TOP_K = 5
 
-TOP_K = 1
+LLM_URL = "https://openwebui.ux.uis.no/api/chat/completions"
+LLM_MODEL = "llama3.3:70b"
+TEST = True
+LLM_API_KEY = os.getenv("OLLAMA_KEY")
+if not LLM_API_KEY:
+    raise ValueError("LLM_API_KEY is not set. Please set the OLLAMA_KEY environment variable.")
 
-TOKEN_RE = re.compile(r"[A-Za-z0-9]+", re.UNICODE)
+SLEEP_BETWEEN_REQUESTS = 1.0  # seconds between LLM calls
 
-def tokenize(text: str) -> List[str]:
-    return [t.lower() for t in TOKEN_RE.findall(text)]
+def get_es_client() -> Elasticsearch:
+    es = Elasticsearch(ES_HOST)
+    if not es.ping():
+        raise ConnectionError("Cannot connect to Elasticsearch")
+    return es
 
-@dataclass
-class Doc:
-    chunk_id: str
-    text: str
 
-class BM25:
-    def __init__(self, docs: List[Doc], k1: float = 1.5, b: float = 0.75):
-        self.docs = docs
-        self.k1 = k1
-        self.b = b
+def search_documents(es: Elasticsearch, query: str, top_k: int = TOP_K) -> list[dict]:
+    """Search Elasticsearch and return top-k documents."""
+    response = es.search(
+        index=INDEX_NAME,
+        query={"match": {"content": query}},
+        size=top_k,
+    )
 
-        self.doc_tokens: List[List[str]] = [tokenize(d.text) for d in docs]
-        self.doc_lens = [len(toks) for toks in self.doc_tokens]
-        self.avgdl = sum(self.doc_lens) / max(1, len(self.doc_lens))
+    results = []
+    for hit in response["hits"]["hits"]:
+        results.append({
+            "score": hit["_score"],
+            "title": hit["_source"]["title"],
+            "date": hit["_source"]["date"],
+            "pageid": hit["_source"]["pageid"],
+            "content": hit["_source"]["content"],  
+        })
+    return results
 
-        # df / idf
-        df: Dict[str, int] = {}
-        for toks in self.doc_tokens:
-            seen = set(toks)
-            for term in seen:
-                df[term] = df.get(term, 0) + 1
 
-        N = len(self.docs)
-        self.idf: Dict[str, float] = {}
-        for term, f in df.items():
-            self.idf[term] = math.log(1 + (N - f + 0.5) / (f + 0.5))
+def build_prompt(question: str, documents: list[dict]) -> str:
+    """Build the RAG prompt with retrieved documents."""
+    doc_texts = []
+    for i, doc in enumerate(documents, 1):
+        doc_texts.append(
+            f"## Document {i}: {doc['title']} (Last Modified: {doc['date']})\n"
+            f"{doc['content']}"
+        )
 
-        self.tf: List[Dict[str, int]] = []
-        for toks in self.doc_tokens:
-            counts: Dict[str, int] = {}
-            for t in toks:
-                counts[t] = counts.get(t, 0) + 1
-            self.tf.append(counts)
+    documents_str = "\n\n".join(doc_texts)
 
-    def score(self, query: str) -> List[float]:
-        q = tokenize(query)
-        scores = [0.0] * len(self.docs)
+    prompt = (
+        f"Given a question and some relevant documents, generate a SHORT ANSWER "
+        f"to the question based on the documents.\n\n"
+        f"# Question\n{question}\n\n"
+        f"# Documents\n{documents_str}\n\n"
+        f"# Requirements\n"
+        f"- Please give a SHORT ANSWER. Use as few words as possible.\n"
+        f"- If your answer is a number under 10, always type it as a word (e.g., \"five\" instead of \"5\").\n"
+        f"- If the answer is a number with more than 4 digits, use commas as thousand separators (e.g., \"1,000\" instead of \"1000\").\n"
+        f"- Don't include period at the end of the answer.\n"
+        f"- If you are not sure about the answer, you MUST reply \"Unsure\".\n"
+        f"- Your answer should be based on the most up-to-date information available "
+        f"in the documents.\n\n"
+        f"# Answer"
+    )
+    return prompt
 
-        for i, tf_doc in enumerate(self.tf):
-            dl = self.doc_lens[i]
-            norm = self.k1 * (1 - self.b + self.b * (dl / self.avgdl if self.avgdl else 1.0))
-            s = 0.0
-            for term in q:
-                if term not in tf_doc:
-                    continue
-                idf = self.idf.get(term, 0.0)
-                freq = tf_doc[term]
-                s += idf * (freq * (self.k1 + 1)) / (freq + norm)
-            scores[i] = s
 
-        return scores
+def query_llm(prompt: str) -> str:
+    """Send prompt to LLM and return the response text."""
+    headers = {
+        "Authorization": f"Bearer {LLM_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": LLM_MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.3,
+    }
 
-def parse_iso_to_ym(iso: str) -> str:
-    dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
-    return f"{dt.year:04d}-{dt.month:02d}"
+    response = requests.post(LLM_URL, headers=headers, json=payload, timeout=120)
+    response.raise_for_status()
 
-def find_doc_jsonl(kb_dir: Path, ym: str, pageid: str) -> Optional[Path]:
-    """
-    Finner fil basert på:
-      - prefix YYYY-MM_
-      - inneholder _<pageid>_
-    """
-    pattern = f"{ym}_*_{pageid}_*.jsonl"
-    hits = sorted(kb_dir.glob(pattern))
-    if hits:
-        return hits[0]
+    data = response.json()
+    return data["choices"][0]["message"]["content"].strip()
 
-    pattern2 = f"*_{pageid}_*.jsonl"
-    hits2 = sorted(kb_dir.glob(pattern2))
-    for h in hits2:
-        if h.name.startswith(ym + "_"):
-            return h
-    return hits2[0] if hits2 else None
 
-def load_chunks(jsonl_path: Path) -> List[Doc]:
-    docs: List[Doc] = []
-    with jsonl_path.open("r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
+def load_questions(csv_path: Path) -> list[dict]:
+    """Load questions from the CSV file."""
+    questions = []
+    with open(csv_path, "r", encoding="utf-8") as f:
+        reader = csv.reader(f, delimiter=";")
+        next(reader)  # skip header
+        for row in reader:
+            if len(row) < 6:
                 continue
-            row = json.loads(line)
-            docs.append(Doc(
-                chunk_id=row.get("chunk_id") or f"{row.get('doc_id','doc')}_{row.get('chunk_index',0)}",
-                text=row.get("text", "")
-            ))
-    return docs
-
-def top_k_chunks(question: str, jsonl_path: Path, k: int) -> List[Tuple[float, Doc]]:
-    docs = load_chunks(jsonl_path)
-    if not docs:
-        return []
-    bm25 = BM25(docs)
-    scores = bm25.score(question)
-    ranked = sorted(zip(scores, docs), key=lambda x: x[0], reverse=True)
-    # filtrer bort 0-score hvis du vil
-    return ranked[:k]
+            questions.append({
+                "id": row[0].strip(),
+                "question": row[1].strip(),
+                "pageid": row[2].strip(),
+                "title": row[3].strip(),
+                "new_date": row[4].strip().split("T")[0],
+                "old_date": row[5].strip().split("T")[0],
+            })
+    return questions
 
 
-def format_hits(hits: List[Tuple[float, Doc]]) -> str:
+def evaluate_answer(predicted: str, gold_title: str, gold_pageid: str,
+                    retrieved_docs: list[dict]) -> dict:
     """
-    Legger top-k i én streng (til CSV).
+    Basic evaluation:
+    - Did retrieval find the correct article?
+    - Which version (new/old) was ranked highest?
     """
-    parts = []
-    for score, doc in hits:
-        txt = doc.text.replace("\n", " ").strip()
-        if len(txt) > 800:
-            txt = txt[:800] + "..."
-        parts.append(f"[{doc.chunk_id} | {score:.3f}] {txt}")
-    return " || ".join(parts)
+    correct_retrieved = False
+    correct_rank = -1
+
+    for i, doc in enumerate(retrieved_docs):
+        if doc["pageid"] == gold_pageid:
+            if not correct_retrieved:
+                correct_rank = i + 1
+            correct_retrieved = True
+
+    return {
+        "correct_article_retrieved": correct_retrieved,
+        "correct_article_rank": correct_rank,
+    }
 
 
-def main() -> None:
-    if not CSV_PATH.exists():
-        raise SystemExit(f"Finner ikke CSV: {CSV_PATH}")
-    for d in (KB_NEW_DIR, KB_OLD_DIR):
-        if not d.exists():
-            raise SystemExit(f"Finner ikke mappe: {d}")
+def main():
+    if TEST:
+        answer = query_llm("hei")
+        print(f"Test LLM response: {answer}")
+    
+    es = get_es_client()
+    print(f"Connected to Elasticsearch")
 
-    rows_out: List[Dict[str, str]] = []
+    questions = load_questions(CSV_PATH)
+    print(f"Loaded {len(questions)} questions")
 
-    with CSV_PATH.open("r", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for i, row in enumerate(reader):
-            if i >= 10:
-                print("hard stop after 10 QA")
-                break
-            qid = row.get("qid", "")
-            question = row.get("question", "") or ""
-            pageid = row.get("pageid", "") or ""
-            current_time = row.get("current_time", "") or ""
-            outdated_time = row.get("outdated_info_dates", "") or ""
+    results = []
 
-            ym_new = parse_iso_to_ym(current_time) if current_time else ""
-            ym_old = parse_iso_to_ym(outdated_time) if outdated_time else ""
+    with open(OUTPUT_PATH, "w", encoding="utf-8") as out_f:
+        for i, q in enumerate(questions):
+            print(f"\n[{i+1}/{len(questions)}] {q['question'][:80]}...")
 
-            new_file = find_doc_jsonl(KB_NEW_DIR, ym_new, pageid) if ym_new else None
-            old_file = find_doc_jsonl(KB_OLD_DIR, ym_old, pageid) if ym_old else None
+            # 1. Retrieve
+            docs = search_documents(es, q["question"])
+            print(f"  Retrieved {len(docs)} documents")
 
-            new_hits = top_k_chunks(question, new_file, TOP_K) if new_file else []
-            old_hits = top_k_chunks(question, old_file, TOP_K) if old_file else []
+            # 2. Generate
+            prompt = build_prompt(q["question"], docs)
+            try:
+                answer = query_llm(prompt)
+            except Exception as e:
+                answer = f"[ERROR] {e}"
+                print(f"  LLM error: {e}")
 
-            out = dict(row)  # behold originalkolonner
-            out["new_chunks_file"] = str(new_file) if new_file else ""
-            out["outdated_chunks_file"] = str(old_file) if old_file else ""
-            out["new_top_chunks"] = format_hits(new_hits)
-            out["outdated_top_chunks"] = format_hits(old_hits)
+            print(f"  Answer: {answer[:100]}")
 
-            rows_out.append(out)
+            # 3. Evaluate retrieval
+            eval_result = evaluate_answer(answer, q["title"], q["pageid"], docs)
+            print(f"  Correct article retrieved: {eval_result['correct_article_retrieved']}"
+                  f" (rank: {eval_result['correct_article_rank']})")
 
-            print(f"[Q{qid}] pageid={pageid} ym_new={ym_new} ym_old={ym_old} "
-                  f"new_hits={len(new_hits)} old_hits={len(old_hits)}")
+            # 4. Log result
+            result = {
+                "question_id": q["id"],
+                "question": q["question"],
+                "gold_pageid": q["pageid"],
+                "gold_title": q["title"],
+                "new_date": q["new_date"],
+                "old_date": q["old_date"],
+                "predicted_answer": answer,
+                "retrieved_docs": [
+                    {"pageid": d["pageid"], "title": d["title"],
+                     "date": d["date"], "score": d["score"]}
+                    for d in docs
+                ],
+                **eval_result,
+            }
 
-    fieldnames = list(rows_out[0].keys()) if rows_out else []
-    with OUT_CSV.open("w", encoding="utf-8", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(rows_out)
+            out_f.write(json.dumps(result, ensure_ascii=False) + "\n")
+            out_f.flush()
 
-    print(f"\n[DONE] Skrev: {OUT_CSV}")
+            time.sleep(SLEEP_BETWEEN_REQUESTS)
+
+    # Summary
+    print("\n" + "=" * 60)
+    print("SUMMARY")
+    print("=" * 60)
+
+    with open(OUTPUT_PATH, "r") as f:
+        all_results = [json.loads(line) for line in f]
+
+    total = len(all_results)
+    retrieved = sum(1 for r in all_results if r["correct_article_retrieved"])
+    print(f"Total questions: {total}")
+    print(f"Correct article retrieved: {retrieved}/{total} ({100*retrieved/total:.1f}%)")
+    print(f"Results saved to: {OUTPUT_PATH}")
 
 
 if __name__ == "__main__":

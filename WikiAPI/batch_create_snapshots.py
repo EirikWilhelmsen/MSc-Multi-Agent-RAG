@@ -18,7 +18,6 @@ SLEEP_SECONDS = 0.1
 MAX_REDIRECT_HOPS = 5
 USE_HARDLINKS = True
 
-
 def ensure_dir(p: Path) -> None:
     p.mkdir(parents=True, exist_ok=True)
 
@@ -107,6 +106,9 @@ def load_doc_times(path: Path) -> dict[int, list[str]]:
 
 
 def main():
+    counter = 0
+    max_test = 500
+
     if not DOC_TIMES_PATH.exists():
         raise SystemExit(f"Finner ikke: {DOC_TIMES_PATH.resolve()}")
 
@@ -124,8 +126,6 @@ def main():
     for pageid, dates in doc_times.items():
         for ymd in dates:
             try:
-                # fetch_snapshot forventer typisk ISO-timestamp eller en dato.
-                # Hvis din fetch_snapshot krever ISO, bruk f"{ymd}T00:00:00Z"
                 ts = f"{ymd}T00:00:00Z"
 
                 res = fetch_snapshot(pageid, ts, max_redirect_hops=MAX_REDIRECT_HOPS)
@@ -149,6 +149,13 @@ def main():
             except Exception as e:
                 failed += 1
                 print(f"[ERROR] {pageid} @ {ymd} -> {e}")
+                with open("../data/failed_snapshots.jsonl", "a", encoding="utf-8") as ff:
+                    ff.write(json.dumps({"pageid": pageid, "date": ymd, "error": str(e)}, ensure_ascii=False) + "\n")
+            
+            # counter += 1
+            # if counter >= max_test:
+            #     print(f"Stopping after {max_test} snapshots.")
+            #     return
 
     print("\nDone.")
     print(f"ok={ok}, skipped={skipped}, failed={failed}")

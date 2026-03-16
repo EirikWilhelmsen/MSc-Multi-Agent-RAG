@@ -7,8 +7,8 @@ from typing import List, Tuple
 
 import wikitextparser as wtp
 
-RAW_ROOT = Path("KB_raw")
-CLEAN_ROOT = Path("KB_cleaned")
+RAW_ROOT = Path("../KB_raw")
+CLEAN_ROOT = Path("../KB_cleaned")
 RECURSIVE = True
 
 CUTOFF_HEADINGS = {

@@ -210,3 +210,6 @@ __marimo__/
 data/KB*
 .DS_Store
 .vscode/
+
+# conda ?
+Miniconda3-latest-Linux-x86_64.sh

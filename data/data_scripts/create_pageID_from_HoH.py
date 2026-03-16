@@ -5,8 +5,8 @@ import numpy as np
 MAX_QUESTIONS = 100  # hard stop
 
 def main():
-    parquet_path = Path("hoh_qas_240601_241201.parquet")
-    out_csv = Path("hoh_question_pageid_map.csv")
+    parquet_path = Path("../clean_HoH_dataset/hoh_qas_240601_241201.parquet")
+    out_csv = Path("../hoh_question_pageid_map.csv")
 
     df = pd.read_parquet(parquet_path)
 
@@ -48,7 +48,7 @@ def main():
 
     out.insert(0, "qid", range(1, len(out) + 1))
 
-    out.to_csv(out_csv, index=False)
+    out.to_csv(out_csv, index=False, sep=";")
     print(f"Wrote {len(out)} rows (capped at {MAX_QUESTIONS}) to {out_csv}")
 
 if __name__ == "__main__":

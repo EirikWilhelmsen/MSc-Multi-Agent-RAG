@@ -13,3 +13,7 @@ langchain-text-splitters
 matplotlib
 numpy
 dotenv
+pandas
+elasticsearch==8.17.0
+pyarrow
+bert-score

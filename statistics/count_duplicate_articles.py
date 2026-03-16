@@ -3,8 +3,6 @@ from collections import Counter
 
 INPUT_PATH = "../data/doc_times.json"
 
-
-
 def main():
     with open(INPUT_PATH, "r", encoding="utf-8") as f:
         data = json.load(f)
