@@ -5,11 +5,56 @@ from bert_score import score
 from dotenv import load_dotenv
 import os
 import requests
+from deepeval.test_case import LLMTestCase, LLMTestCaseParams
+from deepeval.models.base_model import DeepEvalBaseLLM
+from openai import OpenAI
+from deepeval.metrics import GEval
 
-load_dotenv()  # Load environment variables from .env file
-LLM_API_KEY = os.getenv("OLLAMA_KEY")
+load_dotenv()
+LLM_API_KEY = os.getenv("OLLAMA_API")
 LLM_URL = "https://openwebui.ux.uis.no/api/chat/completions"
 LLM_MODEL = "qwen3:0.6b"
+
+os.environ["CONFIDENT_METRIC_LOGGING_VERBOSE"] = "0"
+
+#print(repr(LLM_API_KEY))
+
+class OpenWebUIModel(DeepEvalBaseLLM):
+    def __init__(self):
+        self.client = OpenAI(
+            api_key=LLM_API_KEY,
+            base_url="https://openwebui.ux.uis.no/api",
+        )
+
+    def load_model(self):
+        return self.client
+
+    def generate(self, prompt: str) -> str:
+        response = self.client.chat.completions.create(
+            model=LLM_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+        )
+        return response.choices[0].message.content.strip() # type: ignore
+
+    async def a_generate(self, prompt: str) -> str:
+        return self.generate(prompt)
+
+    def get_model_name(self) -> str:
+        return LLM_MODEL
+
+custom_model = OpenWebUIModel()
+
+correctness_metric = GEval(
+    name="Correctness",
+    evaluation_steps=[
+        "Check if the actual output matches or semantically agrees with the expected output",
+        "Partial but unambiguous matches should score high (e.g. '10,000' matches '10,000 years')",
+        "Penalize answers that contradict or are unrelated to the expected output",
+    ],
+    evaluation_params=[LLMTestCaseParams.ACTUAL_OUTPUT, LLMTestCaseParams.EXPECTED_OUTPUT],
+    model=custom_model,
+)
 
 def load_version(type, model):
     with open("../graph_version_control.json", "r") as f:
@@ -95,3 +140,32 @@ def classify_answer_LLM(predicted: str, new_answer: str, old_answer: str, questi
     data = response.json()
     return data["choices"][0]["message"]["content"].strip()
 
+def classify_answer_GEval(predicted: str, new_answer: str, old_answer: str, question: str) -> str | None:
+    # Kall mot new_answer
+    test_case_new = LLMTestCase(
+        input=question,
+        actual_output=predicted,
+        expected_output=new_answer
+    )
+    correctness_metric.measure(test_case_new)
+    score_new = correctness_metric.score
+    print(f"predicted: '{predicted}', new: '{new_answer}' GEval score: {score_new}")
+    # Kall mot old_answer
+    test_case_old = LLMTestCase(
+        input=question,
+        actual_output=predicted,
+        expected_output=old_answer
+    )
+    correctness_metric.measure(test_case_old)
+    score_old = correctness_metric.score
+    print(f"predicted: '{predicted}', old: '{old_answer}' GEval score: {score_old}")
+    # Klassifiser
+    if score_new is not None and score_old is not None:
+        if score_new < 0.5 and score_old < 0.5:
+            return "wrong"
+        elif score_new >= score_old:
+            return "correct"
+        else:
+            return "outdated"
+    else:
+        return None

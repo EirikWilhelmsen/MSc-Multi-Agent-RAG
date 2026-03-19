@@ -211,5 +211,10 @@ data/KB*
 .DS_Store
 .vscode/
 
+.deepeval/
+notes.txt
+time_scheduling.md
+markdown-preview.pdf
+
 # conda ?
 Miniconda3-latest-Linux-x86_64.sh

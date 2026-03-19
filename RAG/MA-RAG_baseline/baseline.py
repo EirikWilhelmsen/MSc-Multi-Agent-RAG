@@ -5,15 +5,19 @@ import time
 from pathlib import Path
 from dotenv import load_dotenv
 import os
+import sys
+sys.path.append("../../statistics")
 
 import requests
 from elasticsearch import Elasticsearch
+from helper_functions.helper_functions import increment_version
 
 load_dotenv()  # Load environment variables from .env file
 
 # --- Configuration ---
 CSV_PATH = Path("../../data/hoh_question_pageid_map.csv")
 OUTPUT_PATH = Path("../../data/rag_baseline_results_v3.jsonl")
+VERSION_CONTROL_PATH = Path("../../graph_version_control.json")
 
 ES_HOST = "http://localhost:9200"
 INDEX_NAME = "wikipedia_snapshots"
@@ -216,6 +220,8 @@ def main():
     print(f"Total questions: {total}")
     print(f"Correct article retrieved: {retrieved}/{total} ({100*retrieved/total:.1f}%)")
     print(f"Results saved to: {OUTPUT_PATH}")
+    
+    increment_version("Results", "Baseline")
 
 
 if __name__ == "__main__":

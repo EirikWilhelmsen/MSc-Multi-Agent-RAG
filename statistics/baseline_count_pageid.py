@@ -33,7 +33,6 @@ def correct_pageids():
             correct_id_not_rank1 += 1
             continue
 
-        # Riktig id er rank 1 — sjekk om versjonen er riktig
         top_doc = r['retrieved_docs'][0]
         correct_version = top_doc['date'] == r['new_date']
 

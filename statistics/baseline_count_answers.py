@@ -6,7 +6,8 @@ from helper_functions.helper_functions import (
     is_match, 
     classify_answer, 
     load_version,
-    increment_version
+    increment_version,
+    classify_answer_GEval
 )
 
 GROUND_TRUTH_PATH = "../data/ground_truth_answers.csv"
@@ -18,7 +19,7 @@ figure_version = load_version("Answer_Count", "Baseline")
 RESULTS_PATH = f"../results/rag_baseline_results_v3.jsonl"
 FIGURE_PATH = f"../results/figures/rag_baseline_answer_counts_{figure_version}.png"
 
-
+OVERRIDE = False
     
 def count():
     with open(RESULTS_PATH, "r") as f:
@@ -38,7 +39,7 @@ def count():
     wrong_count = 0
     unsure_count = 0
     BM_count = 0
-    for r in range(5):
+    for r in range(len(results)):
         predicted = results[r]['predicted_answer']
         question = results[r]['question']
         new = ground_truth[r][1]
@@ -54,38 +55,44 @@ def count():
             print(f"Answer {r} is outdated")
             outdated_count += 1
         else:
-            classification = classify_answer(predicted, new, old)
+            # classification = classify_answer(predicted, new, old)
             # classification = classify_answer_LLM(predicted, new, old, question)
+            classification = classify_answer_GEval(predicted, new, old, question)
             BM_count += 1
             if classification == "correct":
-                print(f"Answer {r} is correct (Bert).")
+                print(f"Answer {r} is correct.")
                 correct_count += 1
             elif classification == "outdated":
-                print(f"Answer {r} is outdated (Bert).")
+                print(f"Answer {r} is outdated.")
                 outdated_count += 1
             elif classification == "wrong":
-                print(f"Answer '{predicted}' needs review.")
-                review = input("correct (c), outdated (o), or wrong (w)? ")
-                if review == "c":
-                    correct_count += 1
-                elif review == "o":
-                    outdated_count += 1
-                elif review == "w":
-                    wrong_count += 1
+                print(f"Answer '{r}' is wrong.")
+                wrong_count += 1
     print(
-        f"BERT: correct: {correct_count}, outdated: {outdated_count}, wrong: {wrong_count}, unsure: {unsure_count}"
+        f"LLM: correct: {correct_count}, outdated: {outdated_count}, wrong: {wrong_count}, unsure: {unsure_count}"
     )
-    # counts = {
-    #     "Correct answers": correct_count,
-    #     "Outdated answers": outdated_count,
-    #     "Wrong answers": wrong_count,
-    #     "Unsure": unsure_count,
-    # }
-    # print(BM_count)
-    # 
-    # create_graph(counts, title = "RAG Baseline Answer Evaluation (100 questions)", path = FIGURE_PATH)
-    # 
-    # increment_version("Answer_Count", "Baseline")
+    counts = {
+        "Correct answers": correct_count,
+        "Outdated answers": outdated_count,
+        "Wrong answers": wrong_count,
+        "Unsure": unsure_count,
+    }
+    print(BM_count)
+    
+    create_graph(counts, title = "RAG Baseline Answer Evaluation (100 questions)", path = FIGURE_PATH)
+    
+    increment_version("Answer_Count", "Baseline")
 
 if __name__ == "__main__":
-    count()
+    if OVERRIDE:
+        counts = {
+            "Correct answers": 63,
+            "Outdated answers": 29,
+            "Wrong answers": 4,
+            "Unsure": 4,
+        }    
+        create_graph(counts, title = "RAG Baseline Answer Evaluation (100 questions)", path = FIGURE_PATH)
+        increment_version("Answer_Count", "Baseline")
+
+    else:
+        count()
