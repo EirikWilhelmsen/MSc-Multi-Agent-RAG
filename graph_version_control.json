@@ -1,7 +1,30 @@
 {
     "Baseline": {
+        "Results": "v15",
+        "Answer_Count": "v26",
+        "PageID_Count": "v14"
+    },
+    "RTA": {
+        "Results": "v1",
+        "Answer_Count": "v8",
+        "PageID_Count": "v3"
+    },
+    "RCA": {
+        "Results": "v4",
+        "Answer_Count": "v5",
+        "PageID_Count": "v3"
+    },
+    "RCO": {
         "Results": "v3",
-        "Answer_Count": "v14",
-        "PageID_Count": "v5"
+        "Answer_Count": "v1",
+        "PageID_Count": "v4"
+    },
+    "RADAR_PLOT": {
+        "radarplot": "v4"
+    },
+    "RCO_V2": {
+        "Results": "v5",
+        "Answer_Count": "v1",
+        "PageID_Count": "v1"
     }
 }
