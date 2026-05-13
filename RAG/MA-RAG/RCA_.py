@@ -16,15 +16,19 @@ from help_functions import (
     get_es_client, increment_version, load_questions, search_documents,
     format_chunks, parse_scores, call_llm, load_version
 )
+from help.aggregations import aggregate
 
 increment_version("Results", "RCA")
 rca_results_version = load_version("Results", "RCA")
 OUTPUT_PATH = f"../../results/rca_results_{rca_results_version}.jsonl"
 SLEEP_BETWEEN_REQUESTS = 1.0
 TOP_CANDIDATES = 3
+AGGREGATION_METHOD = "Majority Vote"
+#AGGREGATION_METHOD = "Confidence"
+#AGGREGATION_METHOD = "Random"
 
 
-def relevance_agent(query: str, chunks: list[str]) -> dict[int, float]:
+def relevance_agent(query: str, chunks: list[str]) -> tuple[str, float]:
     prompt = f"""You are a relevance ranking agent.
         Given the question and a list of text chunks, rank each chunk by how
         directly and completely it answers the question.
@@ -39,8 +43,32 @@ def relevance_agent(query: str, chunks: list[str]) -> dict[int, float]:
         Output ONLY valid JSON, no extra text:
         [{{"chunk_id": 0, "score": 0.9, "reasoning": "..."}}, ...]"""
 
-    response = call_llm(prompt, model="llama3.3:70b")
-    return parse_scores(response)
+    response, tokens = call_llm(prompt, model="gorina10.llama3.3:70b")
+    return parse_scores(response), tokens
+
+def temporal_agent(query: str, chunks: list[str]) -> tuple[dict[int, float], int]:
+    prompt = f"""You are a temporal reasoning agent.
+        Given a question and text chunks that may contain conflicting information,
+        estimate which chunk contains the most RECENT information.
+        
+        Reason about the content of the text itself, including:
+        - Explicit dates or years mentioned in the text
+        - Language cues suggesting updates or changes ("now", "currently", 
+          "recently", "replaced", "formerly", "previously")
+        - Whether one chunk's facts imply the other is outdated
+        
+        Question: {query}
+        
+        Chunks:
+        {format_chunks(chunks)}
+        
+        You MUST score ALL {len(chunks)} chunks (chunk_id 0 through {len(chunks)-1}).
+        
+        Think step by step. Output ONLY valid JSON, no extra text:
+        [{{"chunk_id": 0, "recency_score": 0.8, "reasoning": "..."}}, ...]"""
+
+    response, tokens = call_llm(prompt, model="gorina10.llama3.3:70b")
+    return parse_scores(response), tokens
 
 
 def candidate_agent(query: str, chunk: str, chunk_id: int) -> dict:
@@ -57,7 +85,7 @@ def candidate_agent(query: str, chunk: str, chunk_id: int) -> dict:
         f"Output ONLY valid JSON:\n"
         f"{{\"answer\": \"...\", \"confidence\": 0.85, \"reasoning\": \"...\"}}"
     )
-    response = call_llm(prompt, model="llama3.3:70b")
+    response, tokens = call_llm(prompt, model="gorina10.llama3.3:70b")
     
 
     cleaned = re.sub(r"```(?:json)?|```", "", response).strip()
@@ -68,9 +96,10 @@ def candidate_agent(query: str, chunk: str, chunk_id: int) -> dict:
             "answer": parsed.get("answer", "Unsure"),
             "confidence": float(parsed.get("confidence", 0.0)),
             "reasoning": parsed.get("reasoning", ""),
+            "tokens": tokens
         }
     except (json.JSONDecodeError, KeyError):
-        return {"chunk_id": chunk_id, "answer": "Unsure", "confidence": 0.0, "reasoning": ""}
+        return {"chunk_id": chunk_id, "answer": "Unsure", "confidence": 0.0, "reasoning": "", "tokens": tokens}
 
 
 def run_candidate_agents(query: str, top_chunks: list[dict]) -> list[dict]:
@@ -85,14 +114,10 @@ def run_candidate_agents(query: str, top_chunks: list[dict]) -> list[dict]:
     return results
 
 
-def aggregate(candidates: list[dict]) -> dict:
-    """Returner kandidaten med høyest confidence."""
-    return max(candidates, key=lambda x: (x["confidence"], -x["chunk_id"]))
-
-
 def main():
     es = get_es_client()
     questions = load_questions()
+    total_tokens = 0
 
     with open(OUTPUT_PATH, "w", encoding="utf-8") as out_f:
         for i, q in enumerate(questions):
@@ -104,21 +129,29 @@ def main():
                 continue
 
             # 2. Relevance Agent → top 3
-            relevance_scores = relevance_agent(q["question"], [d["content"] for d in docs])
+            relevance_scores, tokens = relevance_agent(q["question"], [d["content"] for d in docs])
+            total_tokens += tokens
+
             top_indices = sorted(relevance_scores, key=relevance_scores.get, reverse=True)[:TOP_CANDIDATES]
             top_docs = [docs[i] for i in top_indices]
-            print(f"  Top chunks: {[docs[i]['pageid'] for i in top_indices]}")
-
+            print(f"Top chunks: {[docs[i]['pageid'] for i in top_indices]}")
+            #print("token consumption after relevance", total_tokens)
             # 3. Candidate Agents
             candidates = run_candidate_agents(q["question"], top_docs)
+            #tokens
             for c in candidates:
-                print(f"  Chunk {c['chunk_id']}: answer='{c['answer']}', confidence={c['confidence']:.2f}")
+                total_tokens += c["tokens"]
+                print(f"Chunk {c['chunk_id']}: answer='{c['answer']}', confidence={c['confidence']:.2f}, tokens={c['tokens']}")
+            #print("token consumption after candidates", total_tokens)
 
             # 4. Aggregate
-            best = aggregate(candidates)
+            if AGGREGATION_METHOD == "Majority Vote": best = aggregate(candidates, method="majority_vote")
+            elif AGGREGATION_METHOD == "Confidence": best = aggregate(candidates, method="Confidence")
+            elif AGGREGATION_METHOD == "Random": best = aggregate(candidates, method="Random")
+            
             answer = best["answer"]
             best_doc = top_docs[best["chunk_id"]]
-            print(f"  Best answer: '{answer}' (confidence={best['confidence']:.2f})")
+            print(f"Best answer: '{answer}' (confidence={best['confidence']:.2f})")
 
             result = {
                 "question_id": q["id"],
@@ -141,7 +174,9 @@ def main():
             out_f.write(json.dumps(result, ensure_ascii=False) + "\n")
             out_f.flush()
             time.sleep(SLEEP_BETWEEN_REQUESTS)
-
+    print(f"sequencer = False")
+    print(f"Total tokens used: {total_tokens}")
+    print(f"method used for aggregation: {AGGREGATION_METHOD}")
     print(f"\nResults saved to: {OUTPUT_PATH}")
 
 

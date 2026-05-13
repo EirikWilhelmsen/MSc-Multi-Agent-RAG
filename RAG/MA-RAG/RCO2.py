@@ -93,7 +93,7 @@ def main():
     es = get_es_client()
     questions = load_questions()
     token_count = 0
-    alpha = 0.5
+    alpha = 0.3
 
     with open(OUTPUT_PATH, "w", encoding="utf-8") as out_f:
         for i, q in enumerate(questions):

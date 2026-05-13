@@ -6,11 +6,13 @@ import csv
 import json
 import re
 import requests
+import time
 
 load_dotenv()
 
 ES_HOST = "http://localhost:9200"
 LLM_API_KEY = os.getenv("OLLAMA_API")
+#LLM_URL = "https://openwebui.ux.uis.no/ollama/api/generate"
 LLM_URL = "https://openwebui.ux.uis.no/api/chat/completions"
 INDEX_NAME = "wikipedia_snapshots"
 TOP_K = 5
@@ -24,7 +26,7 @@ def get_es_client() -> Elasticsearch:
     return es
 
 
-def load_questions(csv_path="../../data/hoh_question_pageid_map.csv") -> list[dict]:
+def load_questions(csv_path="../../data/500Q/500_hoh_questions.csv") -> list[dict]:
     """Load questions from the CSV file."""
     questions = []
     with open(csv_path, "r", encoding="utf-8") as f:
@@ -35,9 +37,9 @@ def load_questions(csv_path="../../data/hoh_question_pageid_map.csv") -> list[di
                 continue
             questions.append({
                 "id": row[0].strip(),
-                "question": row[1].strip(),
-                "pageid": row[2].strip(),
-                "title": row[3].strip(),
+                "question": row[3].strip(),
+                "pageid": row[1].strip(),
+                "title": row[2].strip(),
                 "new_date": row[4].strip().split("T")[0],
                 "old_date": row[5].strip().split("T")[0],
             })
@@ -96,12 +98,13 @@ def parse_scores(response: str) -> dict[int, float]:
         return scores
 
 
-def call_llm(prompt: str, model: str) -> str:
-    """Send prompt to LLM and return the response text."""
+def call_llm(prompt: str, model: str, max_retries: int = 5, backoff: float = 5.0) -> tuple[str, int]:
+    """Send prompt to LLM and return the response text and token count.
+    
+    Retries on 5xx server errors with exponential backoff.
+    """
     if LLM_API_KEY is None:
         raise ValueError("LLM_API_KEY is not set in environment variables.")
-    print("model", model)
-    print(LLM_API_KEY[:10])
     headers = {
         "Authorization": f"Bearer {LLM_API_KEY}",
         "Content-Type": "application/json",
@@ -111,12 +114,33 @@ def call_llm(prompt: str, model: str) -> str:
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.3,
     }
-    
-    response = requests.post(LLM_URL, headers=headers, json=payload, timeout=120)
-    response.raise_for_status()
-    data = response.json()
-    return data["choices"][0]["message"]["content"].strip()
 
+    for attempt in range(1, max_retries + 1):
+        try:
+            response = requests.post(LLM_URL, headers=headers, json=payload, timeout=120)
+            response.raise_for_status()
+            data = response.json()
+            tokens = data["usage"]["total_tokens"]
+            return data["choices"][0]["message"]["content"].strip(), tokens
+
+        except requests.exceptions.HTTPError as e:
+            status = e.response.status_code if e.response is not None else None
+            if status is not None and 500 <= status < 600 and attempt < max_retries:
+                wait = backoff * attempt
+                print(f"  [LLM {status}] retry {attempt}/{max_retries - 1} in {wait:.1f}s")
+                time.sleep(wait)
+                continue
+            print(e.response.text if e.response is not None else str(e))
+            raise
+
+        except (requests.exceptions.ConnectionError,
+                requests.exceptions.Timeout) as e:
+            if attempt < max_retries:
+                wait = backoff * attempt
+                print(f"  [LLM network error] retry {attempt}/{max_retries - 1} in {wait:.1f}s: {e}")
+                time.sleep(wait)
+                continue
+            raise
 
 def load_version(type: str, model: str, path="../../graph_version_control.json") -> str:
     with open(path, "r") as f:
@@ -131,3 +155,34 @@ def increment_version(type: str, model: str, path="../../graph_version_control.j
     version_control[model][type] = f"v{current + 1}"
     with open(path, "w") as f:
         json.dump(version_control, f, indent=4)
+        
+def normalize_answer(answer: str) -> str:
+    """Lowercase, strip whitespace og trailing skilletegn for sammenligning."""
+    return re.sub(r"[.\s,;:!?]+$", "", answer.strip().lower())
+
+def has_consensus(candidates: list[dict]) -> bool:
+    """Konsensus blant kandidater med faktiske svar."""
+    real_answers = {normalize_answer(c["answer"]) for c in candidates
+                    if normalize_answer(c["answer"]) != "unsure"}
+    return len(real_answers) <= 1
+
+def has_stabilized(prev: list[dict], curr: list[dict]) -> bool:
+    """Stable kun hvis alle kandidater med faktisk svar holder fast på samme svar."""
+    prev_map = {c["chunk_id"]: normalize_answer(c["answer"]) for c in prev
+                if normalize_answer(c["answer"]) != "unsure"}
+    curr_map = {c["chunk_id"]: normalize_answer(c["answer"]) for c in curr
+                if normalize_answer(c["answer"]) != "unsure"}
+
+    # Hvis ingen har et faktisk svar, er det ikke en meningsfull stabil tilstand
+    if not curr_map:
+        return False
+
+    # Sjekk kandidatene som har faktiske svar i begge runder
+    common = prev_map.keys() & curr_map.keys()
+    if not common:
+        return False
+
+    return all(prev_map[cid] == curr_map[cid] for cid in common)
+
+def all_unsure(candidates: list[dict]) -> bool:
+    return all(normalize_answer(c["answer"]) == "unsure" for c in candidates)

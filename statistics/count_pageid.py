@@ -2,7 +2,6 @@ import json
 import matplotlib.pyplot as plt
 import numpy as np
 from helper_functions.helper_functions import (
-    create_graph,
     is_match, 
     #classify_answer,
     load_version,
@@ -31,7 +30,7 @@ def correct_pageids(model):
     elif model == "baseline":
         results_version = load_version("Results", "Baseline")
         figure_version = load_version("PageID_Count", "Baseline")
-        results_path = f"../results/rag_baseline_results_{results_version}.jsonl"
+        results_path = f"../results/final_results/rag_baseline_results_{results_version}.jsonl"
         print(f"Baseline results path: {results_path}")
         figure_path = f"../results/figures/rag_baseline_pageid_counts_{figure_version}.png"
         count_baseline(results_path, figure_path)
@@ -93,7 +92,7 @@ def count_RTA(results_path, figure_path, model):
 
     print(counts)
     
-    pageid_graph(counts, title=f"{model} Page ID Evaluation (100 questions, rank 1 document)", path=figure_path)
+    pageid_graph(counts, title=f"{model} alpha=0.3 Page ID Evaluation (500 questions, rank 1 document)", path=figure_path)
 
     increment_version("PageID_Count", "RTA")
 
@@ -129,7 +128,7 @@ def count_baseline(results_path, figure_path):
 
     print(counts)
     
-    pageid_graph(counts, title=f"{model} Page ID Evaluation (100 questions, rank 1 document)", path=figure_path)
+    pageid_graph(counts, title=f"Pointwise {model} Page ID Evaluation (500 questions, rank 1 document)", path=figure_path)
 
     increment_version("PageID_Count", "Baseline")
 

@@ -2,16 +2,16 @@ import json
 import matplotlib.pyplot as plt
 from helper_functions.helper_functions import (
     classify_answer_LLM,
-    create_graph, 
+    answer_graph, 
     is_match, 
     load_version,
     increment_version,
     numeric_ground_truth_match,
     is_unsure
 )
-
-GROUND_TRUTH_PATH = "../data/ground_truth_answers.csv"
-GROUND_TRUTH_PAGE_PATH = "../data/hoh_question_pageid_map.csv"
+LLM_AS_JUDGE = True
+GROUND_TRUTH_PATH = "../data/500Q/500_hoh_questions.csv"
+#GROUND_TRUTH_PAGE_PATH = "../data/hoh_question_pageid_map.csv"
 ITERATION_COUNT = int(1)
     
 def count(model):
@@ -24,7 +24,7 @@ def count(model):
     elif model == "baseline":
         results_version = load_version("Results", "Baseline")
         figure_version = load_version("Answer_Count", "Baseline")
-        results_path = f"../results/rag_baseline_results_{results_version}.jsonl"
+        results_path = f"../results/final_results/rag_baseline_results_{results_version}.jsonl"
         figure_path = f"../results/figures/rag_baseline_answer_counts_{figure_version}.png"
         count_answers(results_path, figure_path, model = "Baseline")
     elif model == "rca":
@@ -60,77 +60,52 @@ def count_answers(results_path, figure_path, model):
     outdated_count = 0
     wrong_count = 0
     unsure_count = 0
-    LLM_count = 0
-    LLM_unsure_count = 0
-    LLM_correct_count = 0
-    LLM_outdated_count = 0
-    LLM_wrong_count = 0
+    unable_string_match_count = 0
+    
     for r in range(len(results)):
         predicted = results[r]['predicted_answer']
         if model == "RCO_V2" and ITERATION_COUNT == 2: predicted = results[r]['preliminary_answer']
-        question = results[r]['question']
-        new = ground_truth[r][1]
-        old = ground_truth[r][2]
-        
-        numeric_result = numeric_ground_truth_match(predicted, new, old)
-        
-        if is_match(predicted, "Unsure") or is_unsure(predicted):
-            print(f"Answer {r} is unsure")
-            unsure_count += 1
-        elif is_match(predicted, new) or numeric_result == "current":
-            print(f"Answer {r} is correct.")
-            correct_count += 1
-        elif is_match(predicted, old) or numeric_result == "outdated":
-            print(f"Answer {r} is outdated")
-            outdated_count += 1
-        elif numeric_result == "wrong":
-            print(f"Answer {r} is wrong")
-            wrong_count += 1
-        else:
-            # classification = classify_answer(predicted, new, old)
+        question = ground_truth[r][3]
+        # wierd workaround some questions have an error in the csv
+
+        new = ground_truth[r][-2]
+        old = ground_truth[r][-1]
+        if LLM_AS_JUDGE:
             classification = classify_answer_LLM(predicted, new, old, question)
-            # classification = classify_answer_GEval(predicted, new, old, question)
-            LLM_count += 1
             if classification == "correct":
                 print(f"Answer {r} is correct.")
-                LLM_correct_count += 1
-            elif classification == "outdated":
-                print(f"Answer {r} is outdated.")
-                LLM_outdated_count += 1
-            elif classification == "wrong":
-                print(f"Answer '{r}' is wrong.")
-                LLM_wrong_count += 1
+                correct_count += 1
             else:
-                print(f"Answer {r} is unsure.")
-                LLM_unsure_count += 1
-    print(
-        f"LLM: correct: {correct_count}+{LLM_correct_count}, outdated: {outdated_count}+{LLM_outdated_count}, wrong: {wrong_count}+{LLM_wrong_count}, unsure: {unsure_count}+{LLM_unsure_count}"
-    )
+                wrong_count += 1
+        else:
+            numeric_result = numeric_ground_truth_match(predicted, new, old)
+
+            if is_match(predicted, "Unsure") or is_unsure(predicted):
+                print(f"predicted: {predicted} - new: {new} - old: {old} -> Wrong")
+                wrong_count += 1
+            elif is_match(predicted, new) or numeric_result == "current":
+                print(f"predicted: {predicted} - new: {new} - old: {old} -> Correct")
+                correct_count += 1
+            elif is_match(predicted, old) or numeric_result == "outdated":
+                print(f"predicted: {predicted} - new: {new} - old: {old} -> Wrong")
+                wrong_count += 1
+            elif numeric_result == "wrong":
+                print(f"predicted: {predicted} - new: {new} - old: {old} -> Wrong")
+                wrong_count += 1
+            else:
+                print(f"predicted: {predicted} - new: {new} - old: {old} -> No string match")
+                unable_string_match_count += 1
     counts = {
         "Correct answers": correct_count,
-        "Outdated answers": outdated_count,
         "Wrong answers": wrong_count,
-        "Unsure": unsure_count,
     }
-    LLM_counts = {
-        "LLM Correct": LLM_correct_count,
-        "LLM Outdated": LLM_outdated_count,
-        "LLM Wrong": LLM_wrong_count,
-        "LLM Unsure": LLM_unsure_count
-    }
-    print(LLM_count)
     
-    if ITERATION_COUNT == 1:
-        create_graph(counts, LLM_counts, title = f"{model} Answer Evaluation (100 questions)", path = figure_path)
-        increment_version("Answer_Count", model)
-    else:
-        print(f"\n{'='*50}")
-        print(f"preliminary answer EVALUATION")
-        print(f"{'='*50}")
-        for i in counts:
-            print(f"{i}: {counts[i]} (LLM: {LLM_counts.get('LLM ' + i, 'N/A')})")
-        print(f"{'='*50}\n")
-
+    #if ITERATION_COUNT == 1:
+    #    create_graph(counts, LLM_counts, title = f"{model} Answer Evaluation (100 questions)", path = figure_path)
+    #    increment_version("Answer_Count", model)
+    answer_graph(counts, title = f"{model} alpha=0.3 Answer Evaluation ({500-unable_string_match_count} questions) Method: LLM-as-judge", path = figure_path)
+    increment_version("Answer_Count", model)
+    print(f"fullførte analyse av {results_path}, {model}")
 if __name__ == "__main__":
     ITERATION_COUNT = 1
     model = input("enter rag model: ").lower()

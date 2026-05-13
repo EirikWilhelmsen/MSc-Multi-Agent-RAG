@@ -13,13 +13,12 @@ from help_functions import (
     format_chunks, parse_scores, call_llm, load_version, increment_version
 )
 
-
 increment_version("Results", "Baseline")
 results_version = load_version("Results", "Baseline")
 OUTPUT_PATH = Path(f"../../data/rag_baseline_results_{results_version}.jsonl")
 SLEEP_BETWEEN_REQUESTS = 1.0  # seconds between LLM calls
 
-def generation_agent(query: str, documents: list[dict]) -> str:
+def generation_agent(query: str, documents: list[dict]) -> tuple[str, int]:
     doc_texts = []
     for i, doc in enumerate(documents, 1):
         doc_texts.append(
@@ -31,7 +30,7 @@ def generation_agent(query: str, documents: list[dict]) -> str:
     
     prompt = (
         f"Given a question and some relevant documents, generate a SHORT ANSWER "
-        f"to the question based on the documents.\n\n"
+        f"to the question based on the document.\n\n" 
         f"# Question\n{query}\n\n"
         f"# Text\n{documents_str}\n\n"
         f"# Requirements\n"
@@ -42,10 +41,11 @@ def generation_agent(query: str, documents: list[dict]) -> str:
         f"in the documents.\n\n"
         f"# Answer"
     )
-    return call_llm(prompt, model="llama3.3:70b")
+    return call_llm(prompt, model="gorina10.llama3.3:70b")
 
 
 def main():
+    tokens = 0
     es = get_es_client()
     print(f"Connected to Elasticsearch")
 
@@ -60,14 +60,15 @@ def main():
 
             # 1. Retrieve
             docs = search_documents(es, q["question"])
-            print(f"  Retrieved {len(docs)} documents")
+            print(f"Retrieved {len(docs)} documents")
             if not docs:
-                print("  No documents retrieved, skipping.")
+                print("No documents retrieved, skipping.")
                 continue
 
             # 2. Generate
             try:
-                answer = generation_agent(q["question"], docs)
+                answer, token_count = generation_agent(q["question"], docs)
+                tokens += token_count
             except Exception as e:
                 answer = f"[ERROR] {e}"
                 print(f"LLM error: {e}")
@@ -105,6 +106,8 @@ def main():
 
     total = len(all_results)
     retrieved = sum(1 for r in all_results if r["correct_article_retrieved"])
+    print("Top-1")
+    print(f"Total tokens: {tokens}")
     print(f"Total questions: {total}")
     print(f"Correct article retrieved: {retrieved}/{total} ({100*retrieved/total:.1f}%)")
     print(f"Results saved to: {OUTPUT_PATH}")

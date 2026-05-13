@@ -21,6 +21,7 @@ rco_results_version = load_version("Results", "RCO_V2")
 OUTPUT_PATH = f"../../results/rco_v2_results_{rco_results_version}.jsonl"
 SLEEP_BETWEEN_REQUESTS = 1.0
 TOP_CANDIDATES = 3
+TRESHOLD_CONFLICT_DETECTION = 1.0
 
 def relevance_agent(query: str, chunks: list[str]) -> dict[int, float]:
     prompt = (
@@ -34,10 +35,10 @@ def relevance_agent(query: str, chunks: list[str]) -> dict[int, float]:
         f"Output ONLY valid JSON, no extra text:\n"
         f"[{{\"chunk_id\": 0, \"score\": 0.9, \"reasoning\": \"...\"}}]"
     )
-    response = call_llm(prompt, model="llama3.3:70b")
-    return parse_scores(response)
+    response, tokens = call_llm(prompt, model="gorina10.llama3.3:70b")
+    return parse_scores(response), tokens
 
-def conflict_detection_agent(query: str, chunks: list[str]) -> dict:
+def conflict_detection_agent(query: str, chunks: list[str]) -> tuple[dict, int]:
     """Identifiserer konflikt og formulerer den eksplisitt."""
     chunks_str = format_chunks(chunks)
     prompt = (
@@ -53,21 +54,27 @@ def conflict_detection_agent(query: str, chunks: list[str]) -> dict:
         f"   - One fact superseding another (e.g., new name vs old name)\n"
         f"   - References to updates or corrections\n"
         f"4. Provide your best answer based on the chunk you believe is most current.\n\n"
+        f"# Requirements for the answer\n"
+        f"- Please give a SHORT ANSWER. Use as few words as possible.\n"
+        f"- If the answer is a number with more than 4 digits, use commas as thousand separators (e.g., \"1,000\" instead of \"1000\").\n"
+        f"- Don't include period at the end of the answer.\n"
+        f"- If you are not sure about the answer, you MUST reply \"Unsure\".\n"
         f"Output ONLY valid JSON:\n"
         f"{{\n"
         f"  \"conflict_detected\": true/false,\n"
-        f"  \"conflict_formulation\": \"Chunk X claims [A], while Chunk Y claims [B]\",\n"
+        f"  \"conflict_formulation\": \"Chunk X claims [A], while Chunk Y claims [B] and Chunk Z claims [C]\",\n"
         f"  \"outdated_hypothesis\": \"Chunk X appears outdated because...\",\n"
         f"  \"preliminary_answer\": \"...\",\n"
         f"  \"source_chunk_id\": 0,\n"
         f"  \"confidence\": 0.8\n"
         f"}}"
     )
-    response = call_llm(prompt, model="llama3.3:70b")
+    #print(prompt)
+    response, tokens = call_llm(prompt, model="gorina10.llama3.3:70b")
     
     cleaned = re.sub(r"```(?:json)?|```", "", response).strip()
     try:
-        return json.loads(cleaned)
+        return json.loads(cleaned), tokens
     except json.JSONDecodeError:
         return {
             "conflict_detected": False,
@@ -76,10 +83,10 @@ def conflict_detection_agent(query: str, chunks: list[str]) -> dict:
             "preliminary_answer": "Unsure",
             "source_chunk_id": None,
             "confidence": 0.0
-        }
+        }, tokens
 
 
-def verification_agent(query: str, conflict_info: dict, chunks: list[str]) -> dict:
+def verification_agent(query: str, conflict_info: dict, chunks: list[str]) -> tuple[dict, int]:
     """Utfordrer det foreløpige svaret med oppfølgingsspørsmål basert på konflikten."""
     chunks_str = format_chunks(chunks)
     
@@ -97,40 +104,52 @@ def verification_agent(query: str, conflict_info: dict, chunks: list[str]) -> di
         f"# Your Task\n"
         f"1. Generate a follow-up question that would help distinguish which chunk is current.\n"
         f"2. Answer your own follow-up question using evidence from the chunks.\n"
-        f"3. Based on this analysis, either CONFIRM or REVISE the preliminary answer.\n\n"
-        f"# Requirements\n"
-        f"- Final answer should be SHORT (as few words as possible).\n"
-        f"- Numbers over 4 digits use comma separators (e.g., \"1,000\").\n"
-        f"- No period at end of answer.\n"
-        f"- If unsure, answer \"Unsure\".\n\n"
+        f"3. Based on this analysis, either CONFIRM or REVISE the source chunk.\n\n"
         f"Output ONLY valid JSON:\n"
         f"{{\n"
         f"  \"followup_question\": \"...\",\n"
         f"  \"followup_reasoning\": \"...\",\n"
         f"  \"decision\": \"confirm\" or \"revise\",\n"
-        f"  \"final_answer\": \"...\",\n"
         f"  \"final_source_chunk_id\": 0\n"
         f"}}"
     )
-    response = call_llm(prompt, model="llama3.3:70b")
+    #print(prompt)
+    response, tokens = call_llm(prompt, model="gorina10.llama3.3:70b")
     
     cleaned = re.sub(r"```(?:json)?|```", "", response).strip()
     try:
-        return json.loads(cleaned)
+        return json.loads(cleaned), tokens
     except json.JSONDecodeError:
         # Fallback: behold preliminary answer
         return {
             "followup_question": "",
             "followup_reasoning": "",
             "decision": "confirm",
-            "final_answer": conflict_info.get("preliminary_answer", "Unsure"),
             "final_source_chunk_id": conflict_info.get("source_chunk_id")
-        }
+        }, tokens
+
+def generation_agent(query: str, chunk: str) -> tuple[str, int]:
+    prompt = (
+        f"Given a question and some relevant documents, generate a SHORT ANSWER "
+        f"to the question based on the documents.\n\n"
+        f"# Question\n{query}\n\n"
+        f"# Text\n{chunk}\n\n"
+        f"# Requirements\n"
+        f"- Please give a SHORT ANSWER. Use as few words as possible.\n"
+        f"- If the answer is a number with more than 4 digits, use commas as thousand separators (e.g., \"1,000\" instead of \"1000\").\n"
+        f"- Don't include period at the end of the answer.\n"
+        f"- If you are not sure about the answer, you MUST reply \"Unsure\".\n"
+        f"in the documents.\n\n"
+        f"# Answer"
+    )
+    response, tokens = call_llm(prompt, model="gorina10.llama3.3:70b")
+    return response, tokens
 
 
 def main():
     es = get_es_client()
     questions = load_questions()
+    total_tokens = 0
 
     with open(OUTPUT_PATH, "w", encoding="utf-8") as out_f:
         for i, q in enumerate(questions):
@@ -143,37 +162,62 @@ def main():
             chunks = [d["content"] for d in docs]
 
             # 1. Relevance ranking
-            relevance_scores = relevance_agent(q["question"], chunks)
+            relevance_scores, tokens= relevance_agent(q["question"], chunks)
             top_indices = sorted(
                 relevance_scores, key=relevance_scores.get, reverse=True
             )[:TOP_CANDIDATES] if relevance_scores else list(range(min(TOP_CANDIDATES, len(docs))))
-            
+            total_tokens += tokens
             top_docs = [docs[i] for i in top_indices]
             top_chunks = [d["content"] for d in top_docs]
 
             # 2. Conflict detection
-            conflict_info = conflict_detection_agent(q["question"], top_chunks)
+            conflict_info, tokens = conflict_detection_agent(q["question"], top_chunks)
+            total_tokens += tokens
             print(f"Conflict: {conflict_info.get('conflict_detected')}")
             formulation = conflict_info.get('conflict_formulation') or ''
             print(f"Formulation: {formulation[:80]}")
 
             # 3. Verification (kun hvis konflikt eller lav confidence)
-            if conflict_info.get("conflict_detected") or conflict_info.get("confidence", 1.0) < 0.7:
-                verification = verification_agent(q["question"], conflict_info, top_chunks)
-                final_answer = verification.get("final_answer", "Unsure")
+            if conflict_info.get("conflict_detected") or conflict_info.get("confidence", 1.0) < TRESHOLD_CONFLICT_DETECTION:
+                verification, tokens = verification_agent(q["question"], conflict_info, top_chunks)
+                total_tokens += tokens
                 source_chunk_id = verification.get("final_source_chunk_id")
                 decision = verification.get("decision")
-                print(f"  Verification decision: {decision}")
+                followup_q = verification.get("followup_question", "")
+                followup_reasoning = verification.get("followup_reasoning", "")
+                print(f"Verification decision: {decision}")
+                print(f"Follow-up question: {followup_q}")
+                print(f"Follow-up reasoning: {followup_reasoning}")
+                print(f"Source chunk ID after verification: {source_chunk_id}")
+                if decision == "revise":
+                    try:
+                        source_chunk_id = int(source_chunk_id)
+                        final_answer, tokens = generation_agent(q["question"], top_chunks[source_chunk_id])
+                        print(f"Revised answer: {final_answer}")
+                        total_tokens += tokens
+                    except (TypeError, ValueError):
+                        final_answer = "Unsure"
+                else:
+                    final_answer = conflict_info.get("preliminary_answer", "Unsure")
             else:
                 verification = {}
                 final_answer = conflict_info.get("preliminary_answer", "Unsure")
                 source_chunk_id = conflict_info.get("source_chunk_id")
                 decision = "no_conflict"
 
-            print(f"  Final answer: '{final_answer}'")
-
-            best_chunk = top_docs[source_chunk_id] if source_chunk_id is not None and source_chunk_id < len(top_docs) else None
-
+            print(f"Final answer: '{final_answer}'")
+    
+            if source_chunk_id is None or source_chunk_id == 'None':
+                best_chunk = None
+            elif isinstance(source_chunk_id, str):
+                try:
+                    source_chunk_id = int(source_chunk_id)
+                    best_chunk = top_docs[source_chunk_id] if source_chunk_id < len(top_docs) else None
+                except ValueError:
+                    best_chunk = None
+            else:
+                best_chunk = top_docs[source_chunk_id] if source_chunk_id < len(top_docs) else None
+                
             result_out = {
                 "question_id": q["id"],
                 "question": q["question"],
@@ -186,10 +230,11 @@ def main():
                 "conflict_formulation": conflict_info.get("conflict_formulation", ""),
                 "outdated_hypothesis": conflict_info.get("outdated_hypothesis", ""),
                 "preliminary_answer": conflict_info.get("preliminary_answer", ""),
+                "source_chunk_id": source_chunk_id,
                 "verification_decision": decision,
                 "followup_question": verification.get("followup_question", ""),
                 "followup_reasoning": verification.get("followup_reasoning", ""),
-                "source_chunk_id": source_chunk_id,
+                "preliminary_chunk_id": conflict_info.get("source_chunk_id"),
                 "best_chunk_pageid": best_chunk["pageid"] if best_chunk else None,
                 "best_chunk_date": best_chunk["date"] if best_chunk else None,
                 "correct_article_retrieved": any(d["pageid"] == q["pageid"] for d in docs),
@@ -214,6 +259,8 @@ def main():
     print(f"Total questions:           {total}")
     print(f"Correct article retrieved: {retrieved}/{total} ({100*retrieved/total:.1f}%)")
     print(f"Conflicts detected:        {conflicts}/{total} ({100*conflicts/total:.1f}%)")
+    print(f"Total tokens used:         {total_tokens}")
+    print(f"Threshold conflict detection: {TRESHOLD_CONFLICT_DETECTION}")
     print(f"Results saved to:          {OUTPUT_PATH}")
     
 
