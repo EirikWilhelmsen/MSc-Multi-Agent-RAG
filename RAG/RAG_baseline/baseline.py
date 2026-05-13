@@ -8,40 +8,15 @@ import os
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
+from Agents import baseline_generation_agent
 from help_functions import (
-    get_es_client, load_questions, search_documents,
-    format_chunks, parse_scores, call_llm, load_version, increment_version
+    get_es_client, load_questions, search_documents, load_version, increment_version
 )
 
 increment_version("Results", "Baseline")
 results_version = load_version("Results", "Baseline")
 OUTPUT_PATH = Path(f"../../data/rag_baseline_results_{results_version}.jsonl")
 SLEEP_BETWEEN_REQUESTS = 1.0  # seconds between LLM calls
-
-def generation_agent(query: str, documents: list[dict]) -> tuple[str, int]:
-    doc_texts = []
-    for i, doc in enumerate(documents, 1):
-        doc_texts.append(
-            f"## Document {i}\n"
-            f"{doc['content']}"
-        )
-
-    documents_str = "\n\n".join(doc_texts)
-    
-    prompt = (
-        f"Given a question and some relevant documents, generate a SHORT ANSWER "
-        f"to the question based on the document.\n\n" 
-        f"# Question\n{query}\n\n"
-        f"# Text\n{documents_str}\n\n"
-        f"# Requirements\n"
-        f"- Please give a SHORT ANSWER. Use as few words as possible.\n"
-        f"- If the answer is a number with more than 4 digits, use commas as thousand separators (e.g., \"1,000\" instead of \"1000\").\n"
-        f"- Don't include period at the end of the answer.\n"
-        f"- If you are not sure about the answer, you MUST reply \"Unsure\".\n"
-        f"in the documents.\n\n"
-        f"# Answer"
-    )
-    return call_llm(prompt, model="gorina10.llama3.3:70b")
 
 
 def main():
@@ -67,7 +42,7 @@ def main():
 
             # 2. Generate
             try:
-                answer, token_count = generation_agent(q["question"], docs)
+                answer, token_count = baseline_generation_agent(q["question"], docs)
                 tokens += token_count
             except Exception as e:
                 answer = f"[ERROR] {e}"
@@ -111,8 +86,6 @@ def main():
     print(f"Total questions: {total}")
     print(f"Correct article retrieved: {retrieved}/{total} ({100*retrieved/total:.1f}%)")
     print(f"Results saved to: {OUTPUT_PATH}")
-    
-    #increment_version("Results", "Baseline")
 
 
 if __name__ == "__main__":

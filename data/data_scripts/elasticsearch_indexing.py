@@ -44,8 +44,7 @@ def create_index(es: Elasticsearch) -> None:
     print(f"Created index: {INDEX_NAME}")
 
 
-def chunk_text(text: str, chunk_size: int = CHUNK_SIZE,
-               overlap: int = CHUNK_OVERLAP) -> list[str]:
+def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> list[str]:
     """
     Split text into chunks of approximately chunk_size tokens
     with overlap tokens between consecutive chunks.

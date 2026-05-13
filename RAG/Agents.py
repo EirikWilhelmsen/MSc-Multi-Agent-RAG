@@ -1,36 +1,25 @@
-"""RCDS.py
-    R - Relevance Agent
-    C - Candidate Agents (3 parallel)
-    D - Debate (multi-round)
-    S - Supervisor Agent
-"""
-import os
-import sys
-import time
+from help_functions import call_llm, format_chunks, parse_scores
 import json
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import re
-import time
 
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+def generation_agent(query: str, chunk: str) -> tuple[str, int]:
+    prompt = (
+        f"Given a question and some relevant documents, generate a SHORT ANSWER "
+        f"to the question based on the documents.\n\n"
+        f"# Question\n{query}\n\n"
+        f"# Text\n{chunk}\n\n"
+        f"# Requirements\n"
+        f"- Please give a SHORT ANSWER. Use as few words as possible.\n"
+        f"- If the answer is a number with more than 4 digits, use commas as thousand separators (e.g., \"1,000\" instead of \"1000\").\n"
+        f"- Don't include period at the end of the answer.\n"
+        f"- If you are not sure about the answer, you MUST reply \"Unsure\".\n"
+        f"in the documents.\n\n"
+        f"# Answer"
+    )
+    response, tokens = call_llm(prompt, model="gorina10.llama3.3:70b")
+    return response, tokens
 
-from help_functions import (
-    get_es_client, increment_version, load_questions, search_documents,
-    format_chunks, parse_scores, call_llm, load_version
-)
-
-increment_version("Results", "RCDS")
-rcds_results_version = load_version("Results", "RCDS")
-OUTPUT_PATH = f"../../results/rcds_results_{rcds_results_version}.jsonl"
-SLEEP_BETWEEN_REQUESTS = 1.0
-TOP_CANDIDATES = 3
-
-
-DEBATE_ROUNDS = 2
-
-# ── 1. Relevance Agent (same as RCA) ─────────────────────────────────
-
-def relevance_agent(query: str, chunks: list[str]) -> dict[int, float]:
+def relevance_agent(query: str, chunks: list[str]) -> tuple[str, float]:
     prompt = f"""You are a relevance ranking agent.
         Given the question and a list of text chunks, rank each chunk by how
         directly and completely it answers the question.
@@ -48,8 +37,29 @@ def relevance_agent(query: str, chunks: list[str]) -> dict[int, float]:
     response, tokens = call_llm(prompt, model="gorina10.llama3.3:70b")
     return parse_scores(response), tokens
 
+def temporal_agent(query: str, chunks: list[str]) -> tuple[dict[int, float], int]:
+    prompt = f"""You are a temporal reasoning agent.
+        Given a question and text chunks that may contain conflicting information,
+        estimate which chunk contains the most RECENT information.
+        
+        Reason about the content of the text itself, including:
+        - Explicit dates or years mentioned in the text
+        - Language cues suggesting updates or changes ("now", "currently", 
+          "recently", "replaced", "formerly", "previously")
+        - Whether one chunk's facts imply the other is outdated
+        
+        Question: {query}
+        
+        Chunks:
+        {format_chunks(chunks)}
+        
+        You MUST score ALL {len(chunks)} chunks (chunk_id 0 through {len(chunks)-1}).
+        
+        Think step by step. Output ONLY valid JSON, no extra text:
+        [{{"chunk_id": 0, "recency_score": 0.8, "reasoning": "..."}}, ...]"""
 
-# ── 2. Candidate Agent (initial answer) ──────────────────────────────
+    response, tokens = call_llm(prompt, model="gorina10.llama3.3:70b")
+    return parse_scores(response), tokens
 
 def candidate_agent(query: str, chunk: str, chunk_id: int) -> dict:
     prompt = (
@@ -66,7 +76,7 @@ def candidate_agent(query: str, chunk: str, chunk_id: int) -> dict:
         f"{{\"answer\": \"...\", \"confidence\": 0.85, \"reasoning\": \"...\"}}"
     )
     response, tokens = call_llm(prompt, model="gorina10.llama3.3:70b")
-
+    
     cleaned = re.sub(r"```(?:json)?|```", "", response).strip()
     try:
         parsed = json.loads(cleaned)
@@ -79,25 +89,8 @@ def candidate_agent(query: str, chunk: str, chunk_id: int) -> dict:
         }
     except (json.JSONDecodeError, KeyError):
         return {"chunk_id": chunk_id, "answer": "Unsure", "confidence": 0.0, "reasoning": "", "tokens": tokens}
-
-
-def run_candidate_agents(query: str, top_chunks: list[dict]) -> list[dict]:
-    results = []
-    with ThreadPoolExecutor(max_workers=TOP_CANDIDATES) as executor:
-        futures = {
-            executor.submit(candidate_agent, query, chunk["content"], i): i
-            for i, chunk in enumerate(top_chunks)
-        }
-        for future in as_completed(futures):
-            results.append(future.result())
-    results.sort(key=lambda x: x["chunk_id"])
-    return results
-
-
-# ── 3. Debate Round ──────────────────────────────────────────────────
-
-def debate_round(query: str, candidates: list[dict], top_chunks: list[dict],
-                 round_num: int, debate_history: list[list[dict]]) -> list[dict]:
+    
+def debate_round(query: str, candidates: list[dict], top_chunks: list[dict], round_num: int, debate_history: list[list[dict]]) -> list[dict]:
     """Each candidate sees the others' answers and argues for their own."""
 
     updated = []
@@ -164,11 +157,7 @@ def debate_round(query: str, candidates: list[dict], top_chunks: list[dict],
 
     return updated
 
-
-# ── 4. Supervisor Agent ──────────────────────────────────────────────
-
-def supervisor_agent(query: str, candidates: list[dict],
-                     top_chunks: list[dict], debate_history: list[list[dict]]) -> dict:
+def supervisor_agent(query: str, candidates: list[dict], top_chunks: list[dict], debate_history: list[list[dict]]) -> dict:
     """Reviews the full debate and picks the best answer."""
 
     debate_log = ""
@@ -236,96 +225,117 @@ def supervisor_agent(query: str, candidates: list[dict],
             "reasoning": "Fallback: highest confidence",
             "tokens": tokens
         }
+        
+def verification_agent(query: str, conflict_info: dict, chunks: list[str]) -> tuple[dict, int]:
+    """Utfordrer det foreløpige svaret med oppfølgingsspørsmål basert på konflikten."""
+    chunks_str = format_chunks(chunks)
+    
+    prompt = (
+        f"You are a verification agent. A previous agent analyzed these chunks and "
+        f"detected a potential conflict.\n\n"
+        f"# Original Question\n{query}\n\n"
+        f"# Conflict Analysis\n"
+        f"- Conflict: {conflict_info.get('conflict_formulation', 'None detected')}\n"
+        f"- Hypothesis about outdated info: {conflict_info.get('outdated_hypothesis', 'N/A')}\n"
+        f"- Preliminary answer: {conflict_info.get('preliminary_answer', 'Unsure')}\n"
+        f"- Source chunk: {conflict_info.get('source_chunk_id', 'Unknown')}\n"
+        f"- Confidence: {conflict_info.get('confidence', 0.0)}\n\n"
+        f"# Text Chunks\n{chunks_str}\n\n"
+        f"# Your Task\n"
+        f"1. Generate a follow-up question that would help distinguish which chunk is current.\n"
+        f"2. Answer your own follow-up question using evidence from the chunks.\n"
+        f"3. Based on this analysis, either CONFIRM or REVISE the source chunk.\n\n"
+        f"Output ONLY valid JSON:\n"
+        f"{{\n"
+        f"  \"followup_question\": \"...\",\n"
+        f"  \"followup_reasoning\": \"...\",\n"
+        f"  \"decision\": \"confirm\" or \"revise\",\n"
+        f"  \"final_source_chunk_id\": 0\n"
+        f"}}"
+    )
+    #print(prompt)
+    response, tokens = call_llm(prompt, model="gorina10.llama3.3:70b")
+    
+    cleaned = re.sub(r"```(?:json)?|```", "", response).strip()
+    try:
+        return json.loads(cleaned), tokens
+    except json.JSONDecodeError:
+        # Fallback: behold preliminary answer
+        return {
+            "followup_question": "",
+            "followup_reasoning": "",
+            "decision": "confirm",
+            "final_source_chunk_id": conflict_info.get("source_chunk_id")
+        }, tokens
+        
+def conflict_detection_agent(query: str, chunks: list[str]) -> tuple[dict, int]:
+    """Identifiserer konflikt og formulerer den eksplisitt."""
+    chunks_str = format_chunks(chunks)
+    prompt = (
+        f"You are a conflict detection agent analyzing text chunks that may contain "
+        f"contradictory information about the same topic.\n\n"
+        f"# Question\n{query}\n\n"
+        f"# Text Chunks\n{chunks_str}\n\n"
+        f"# Task\n"
+        f"1. Identify if chunks contain CONFLICTING answers to the question.\n"
+        f"2. If conflict exists, formulate it precisely: what does each chunk claim?\n"
+        f"3. Hypothesize which chunk might be outdated vs updated based on:\n"
+        f"   - Language suggesting change ('now', 'currently', 'formerly', 'previously', 'renamed')\n"
+        f"   - One fact superseding another (e.g., new name vs old name)\n"
+        f"   - References to updates or corrections\n"
+        f"4. Provide your best answer based on the chunk you believe is most current.\n\n"
+        f"# Requirements for the answer\n"
+        f"- Please give a SHORT ANSWER. Use as few words as possible.\n"
+        f"- If the answer is a number with more than 4 digits, use commas as thousand separators (e.g., \"1,000\" instead of \"1000\").\n"
+        f"- Don't include period at the end of the answer.\n"
+        f"- If you are not sure about the answer, you MUST reply \"Unsure\".\n"
+        f"Output ONLY valid JSON:\n"
+        f"{{\n"
+        f"  \"conflict_detected\": true/false,\n"
+        f"  \"conflict_formulation\": \"Chunk X claims [A], while Chunk Y claims [B] and Chunk Z claims [C]\",\n"
+        f"  \"outdated_hypothesis\": \"Chunk X appears outdated because...\",\n"
+        f"  \"preliminary_answer\": \"...\",\n"
+        f"  \"source_chunk_id\": 0,\n"
+        f"  \"confidence\": 0.8\n"
+        f"}}"
+    )
+    #print(prompt)
+    response, tokens = call_llm(prompt, model="gorina10.llama3.3:70b")
+    
+    cleaned = re.sub(r"```(?:json)?|```", "", response).strip()
+    try:
+        return json.loads(cleaned), tokens
+    except json.JSONDecodeError:
+        return {
+            "conflict_detected": False,
+            "conflict_formulation": "",
+            "outdated_hypothesis": "",
+            "preliminary_answer": "Unsure",
+            "source_chunk_id": None,
+            "confidence": 0.0
+        }, tokens
+        
+def baseline_generation_agent(query: str, documents: list[dict]) -> tuple[str, int]:
+    doc_texts = []
+    for i, doc in enumerate(documents, 1):
+        doc_texts.append(
+            f"## Document {i}\n"
+            f"{doc['content']}"
+        )
 
-
-# ── Main ─────────────────────────────────────────────────────────────
-
-def main():
-    es = get_es_client()
-    questions = load_questions()
-    total_tokens = 0
-
-    with open(OUTPUT_PATH, "w", encoding="utf-8") as out_f:
-        for i, q in enumerate(questions):
-            if i < 290:
-                continue
-            print(f"\n[{i+1}/{len(questions)}] {q['question'][:80]}...")
-
-            # 1. Retrieve
-            docs = search_documents(es, q["question"])
-            if not docs:
-                continue
-
-            # 2. Relevance Agent → top 3
-            relevance_scores, tokens = relevance_agent(q["question"], [d["content"] for d in docs])
-            total_tokens += tokens
-
-            top_indices = sorted(relevance_scores, key=relevance_scores.get, reverse=True)[:TOP_CANDIDATES]
-            top_docs = [docs[idx] for idx in top_indices]
-            print(f"  Top chunks: {[docs[idx]['pageid'] for idx in top_indices]}")
-
-            # 3. Candidate Agents (parallel)
-            candidates = run_candidate_agents(q["question"], top_docs)
-            for c in candidates:
-                total_tokens += c["tokens"]
-            debate_history = [candidates]  # round 0 = initial answers
-
-            for c in candidates:
-                print(f"  [Initial] Candidate {c['chunk_id']}: '{c['answer']}' "
-                      f"(conf={c['confidence']:.2f})")
-
-            # 4. Debate rounds
-            for r in range(1, DEBATE_ROUNDS + 1):
-                print(f"  --- Debate round {r} ---")
-                candidates = debate_round(q["question"], candidates, top_docs, r, debate_history)
-                debate_history.append(candidates)
-                for c in candidates:
-                    total_tokens += c["tokens"]
-                    print(f"Candidate {c['chunk_id']}: '{c['answer']}' "
-                          f"(conf={c['confidence']:.2f})")
-
-            # 5. Supervisor
-            result_sup = supervisor_agent(q["question"], candidates, top_docs, debate_history)
-            for c in candidates:
-                total_tokens += c["tokens"]
-            answer = result_sup["answer"]
-            winner_id = result_sup["winner_chunk_id"]
-            winner_doc = top_docs[winner_id]
-            print(f"Supervisor chose Candidate {winner_id}: '{answer}'")
-            
-
-            result = {
-                "question_id": q["id"],
-                "question": q["question"],
-                "gold_pageid": q["pageid"],
-                "gold_title": q["title"],
-                "new_date": q["new_date"],
-                "old_date": q["old_date"],
-                "predicted_answer": answer,
-                "best_chunk_pageid": winner_doc["pageid"],
-                "best_chunk_date": winner_doc["date"],
-                "correct_article_retrieved": any(d["pageid"] == q["pageid"] for d in docs),
-                "supervisor_reasoning": result_sup["reasoning"],
-                "debate_history": debate_history,
-                "retrieved_docs": [
-                    {"pageid": d["pageid"], "date": d["date"], "score": d["score"]}
-                    for d in docs
-                ],
-            }
-
-            out_f.write(json.dumps(result, ensure_ascii=False) + "\n")
-            out_f.flush()
-            time.sleep(SLEEP_BETWEEN_REQUESTS)
-    print("\n" + "=" * 60)
-    print("SUMMARY")
-    print("=" * 60)
-    print(f"Total tokens used: {total_tokens}")
-    print(f"Average debate rounds per question: {DEBATE_ROUNDS}")
-    print(f"\nResults saved to: {OUTPUT_PATH}")
-
-
-if __name__ == "__main__":
-    time_start = time.time()
-    main()
-    time_end = time.time()
-    print(f"\nTotal time: {time_end - time_start:.2f} seconds")
+    documents_str = "\n\n".join(doc_texts)
+    
+    prompt = (
+        f"Given a question and some relevant documents, generate a SHORT ANSWER "
+        f"to the question based on the document.\n\n" 
+        f"# Question\n{query}\n\n"
+        f"# Text\n{documents_str}\n\n"
+        f"# Requirements\n"
+        f"- Please give a SHORT ANSWER. Use as few words as possible.\n"
+        f"- If the answer is a number with more than 4 digits, use commas as thousand separators (e.g., \"1,000\" instead of \"1000\").\n"
+        f"- Don't include period at the end of the answer.\n"
+        f"- If you are not sure about the answer, you MUST reply \"Unsure\".\n"
+        f"in the documents.\n\n"
+        f"# Answer"
+    )
+    return call_llm(prompt, model="gorina10.llama3.3:70b")

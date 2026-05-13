@@ -4,11 +4,8 @@ import sys
 import random
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-from help_functions import call_llm
-
 
 def aggregate(candidates: list[dict], method: str) -> dict:
-    """Returner kandidaten med høyest confidence."""
     if method == "majority_vote":
         answer_counts = {}
         for c in candidates:

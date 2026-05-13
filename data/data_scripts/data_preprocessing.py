@@ -134,12 +134,10 @@ def out_path_for(in_fp: Path) -> Path:
 
 def copy_sidecar_json(in_wikitext_fp: Path, out_wikitext_fp: Path) -> None:
     """
-    Kopierer JSON med samme base-navn:
-      <base>.wikitext.txt  -> <base>.json
+    Copy json with same name:
+        <base>.wikitext.txt -> <base>.json
     """
-    in_json = in_wikitext_fp.with_suffix("")  # fjerner .txt
-    # in_json peker nå på .../<base>.wikitext
-    # vi vil ha .../<base>.json
+    in_json = in_wikitext_fp.with_suffix("")
     in_json = in_json.with_suffix(".json")
 
     if in_json.exists():

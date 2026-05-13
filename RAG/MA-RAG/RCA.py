@@ -12,10 +12,10 @@ import re
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-from help_functions import (
-    get_es_client, increment_version, load_questions, search_documents,
-    format_chunks, parse_scores, call_llm, load_version
-)
+from help_functions import get_es_client, increment_version, load_questions, search_documents, load_version
+
+from Agents import relevance_agent, candidate_agent
+
 from help.aggregations import aggregate
 
 increment_version("Results", "RCA")
@@ -23,84 +23,13 @@ rca_results_version = load_version("Results", "RCA")
 OUTPUT_PATH = f"../../results/rca_results_{rca_results_version}.jsonl"
 SLEEP_BETWEEN_REQUESTS = 1.0
 TOP_CANDIDATES = 3
+
+# -----------------------------------
+# Adjustable aggregation methods:
 AGGREGATION_METHOD = "Majority Vote"
 #AGGREGATION_METHOD = "Confidence"
 #AGGREGATION_METHOD = "Random"
-
-
-def relevance_agent(query: str, chunks: list[str]) -> tuple[str, float]:
-    prompt = f"""You are a relevance ranking agent.
-        Given the question and a list of text chunks, rank each chunk by how
-        directly and completely it answers the question.
-        
-        Question: {query}
-        
-        Chunks:
-        {format_chunks(chunks)}
-        
-        For each chunk, output a relevance score from 0.0 to 1.0.
-        Think step by step before scoring.
-        Output ONLY valid JSON, no extra text:
-        [{{"chunk_id": 0, "score": 0.9, "reasoning": "..."}}, ...]"""
-
-    response, tokens = call_llm(prompt, model="gorina10.llama3.3:70b")
-    return parse_scores(response), tokens
-
-def temporal_agent(query: str, chunks: list[str]) -> tuple[dict[int, float], int]:
-    prompt = f"""You are a temporal reasoning agent.
-        Given a question and text chunks that may contain conflicting information,
-        estimate which chunk contains the most RECENT information.
-        
-        Reason about the content of the text itself, including:
-        - Explicit dates or years mentioned in the text
-        - Language cues suggesting updates or changes ("now", "currently", 
-          "recently", "replaced", "formerly", "previously")
-        - Whether one chunk's facts imply the other is outdated
-        
-        Question: {query}
-        
-        Chunks:
-        {format_chunks(chunks)}
-        
-        You MUST score ALL {len(chunks)} chunks (chunk_id 0 through {len(chunks)-1}).
-        
-        Think step by step. Output ONLY valid JSON, no extra text:
-        [{{"chunk_id": 0, "recency_score": 0.8, "reasoning": "..."}}, ...]"""
-
-    response, tokens = call_llm(prompt, model="gorina10.llama3.3:70b")
-    return parse_scores(response), tokens
-
-
-def candidate_agent(query: str, chunk: str, chunk_id: int) -> dict:
-    prompt = (
-        f"Given a question and a text chunk, answer the question based only "
-        f"on the text. Then rate your confidence.\n\n"
-        f"# Question\n{query}\n\n"
-        f"# Text\n{chunk}\n\n"
-        f"# Requirements\n"
-        f"- Please give a SHORT ANSWER. Use as few words as possible.\n"
-        f"- If the answer is a number with more than 4 digits, use commas as thousand separators.\n"
-        f"- Don't include period at the end of the answer.\n"
-        f"- If you are not sure about the answer, you MUST reply \"Unsure\" as answer.\n\n"
-        f"Output ONLY valid JSON:\n"
-        f"{{\"answer\": \"...\", \"confidence\": 0.85, \"reasoning\": \"...\"}}"
-    )
-    response, tokens = call_llm(prompt, model="gorina10.llama3.3:70b")
-    
-
-    cleaned = re.sub(r"```(?:json)?|```", "", response).strip()
-    try:
-        parsed = json.loads(cleaned)
-        return {
-            "chunk_id": chunk_id,
-            "answer": parsed.get("answer", "Unsure"),
-            "confidence": float(parsed.get("confidence", 0.0)),
-            "reasoning": parsed.get("reasoning", ""),
-            "tokens": tokens
-        }
-    except (json.JSONDecodeError, KeyError):
-        return {"chunk_id": chunk_id, "answer": "Unsure", "confidence": 0.0, "reasoning": "", "tokens": tokens}
-
+# -----------------------------------
 
 def run_candidate_agents(query: str, top_chunks: list[dict]) -> list[dict]:
     results = []
@@ -112,7 +41,6 @@ def run_candidate_agents(query: str, top_chunks: list[dict]) -> list[dict]:
         for future in as_completed(futures):
             results.append(future.result())
     return results
-
 
 def main():
     es = get_es_client()
@@ -128,21 +56,20 @@ def main():
             if not docs:
                 continue
 
-            # 2. Relevance Agent → top 3
+            # 2. Relevance Agent -> top 3
             relevance_scores, tokens = relevance_agent(q["question"], [d["content"] for d in docs])
             total_tokens += tokens
 
             top_indices = sorted(relevance_scores, key=relevance_scores.get, reverse=True)[:TOP_CANDIDATES]
             top_docs = [docs[i] for i in top_indices]
             print(f"Top chunks: {[docs[i]['pageid'] for i in top_indices]}")
-            #print("token consumption after relevance", total_tokens)
+            
             # 3. Candidate Agents
             candidates = run_candidate_agents(q["question"], top_docs)
-            #tokens
+            
             for c in candidates:
                 total_tokens += c["tokens"]
                 print(f"Chunk {c['chunk_id']}: answer='{c['answer']}', confidence={c['confidence']:.2f}, tokens={c['tokens']}")
-            #print("token consumption after candidates", total_tokens)
 
             # 4. Aggregate
             if AGGREGATION_METHOD == "Majority Vote": best = aggregate(candidates, method="majority_vote")
@@ -174,6 +101,7 @@ def main():
             out_f.write(json.dumps(result, ensure_ascii=False) + "\n")
             out_f.flush()
             time.sleep(SLEEP_BETWEEN_REQUESTS)
+            
     print(f"sequencer = False")
     print(f"Total tokens used: {total_tokens}")
     print(f"method used for aggregation: {AGGREGATION_METHOD}")

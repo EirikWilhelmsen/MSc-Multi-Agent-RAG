@@ -11,56 +11,17 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from help_functions import (
     get_es_client, load_questions, search_documents,
-    format_chunks, parse_scores, call_llm, load_version, increment_version
+    load_version, increment_version
 )
+from Agents import temporal_agent, relevance_agent, generation_agent
+
 increment_version("Results", "RTA")
 rta_results_version = load_version("Results", "RTA")
 OUTPUT_PATH = f"../../results/rta_results_{rta_results_version}.jsonl"
 SLEEP_BETWEEN_REQUESTS = 1.0
 
-
-def relevance_agent(query: str, chunks: list[str]) -> tuple[dict[int, float], int]:
-    prompt = f"""You are a relevance ranking agent.
-        Given the question and a list of text chunks, rank each chunk by how
-        directly and completely it answers the question.
-        
-        Question: {query}
-        
-        Chunks:
-        {format_chunks(chunks)}
-        
-        For each chunk, output a relevance score from 0.0 to 1.0.
-        Think step by step before scoring.
-        Output ONLY valid JSON, no extra text:
-        [{{"chunk_id": 0, "score": 0.9, "reasoning": "..."}}, ...]"""
-
-    response, tokens = call_llm(prompt, model="gorina10.llama3.3:70b")
-    return parse_scores(response), tokens
-
-
-def temporal_agent(query: str, chunks: list[str]) -> tuple[dict[int, float], int]:
-    prompt = f"""You are a temporal reasoning agent.
-        Given a question and text chunks that may contain conflicting information,
-        estimate which chunk contains the most RECENT information.
-        
-        Reason about the content of the text itself, including:
-        - Explicit dates or years mentioned in the text
-        - Language cues suggesting updates or changes ("now", "currently", 
-          "recently", "replaced", "formerly", "previously")
-        - Whether one chunk's facts imply the other is outdated
-        
-        Question: {query}
-        
-        Chunks:
-        {format_chunks(chunks)}
-        
-        You MUST score ALL {len(chunks)} chunks (chunk_id 0 through {len(chunks)-1}).
-        
-        Think step by step. Output ONLY valid JSON, no extra text:
-        [{{"chunk_id": 0, "recency_score": 0.8, "reasoning": "..."}}, ...]"""
-
-    response, tokens = call_llm(prompt, model="gorina10.llama3.3:70b")
-    return parse_scores(response), tokens
+# Adjust if needed
+ALPHA = 0.3
 
 
 def aggregate(relevance_scores: dict[int, float], temporal_scores: dict[int, float], alpha: float) -> int:
@@ -72,28 +33,11 @@ def aggregate(relevance_scores: dict[int, float], temporal_scores: dict[int, flo
     return max(final_scores, key=final_scores.get)
 
 
-def generation_agent(query: str, chunk: str) -> tuple[str, int]:
-    prompt = (
-        f"Given a question and some relevant documents, generate a SHORT ANSWER "
-        f"to the question based on the documents.\n\n"
-        f"# Question\n{query}\n\n"
-        f"# Text\n{chunk}\n\n"
-        f"# Requirements\n"
-        f"- Please give a SHORT ANSWER. Use as few words as possible.\n"
-        f"- If the answer is a number with more than 4 digits, use commas as thousand separators (e.g., \"1,000\" instead of \"1000\").\n"
-        f"- Don't include period at the end of the answer.\n"
-        f"- If you are not sure about the answer, you MUST reply \"Unsure\".\n"
-        f"in the documents.\n\n"
-        f"# Answer"
-    )
-    return call_llm(prompt, model="gorina10.llama3.3:70b")
-
-
 def main():
     es = get_es_client()
     questions = load_questions()
     token_count = 0
-    alpha = 0.5
+    alpha = ALPHA
 
     with open(OUTPUT_PATH, "w", encoding="utf-8") as out_f:
         for i, q in enumerate(questions):
@@ -101,38 +45,38 @@ def main():
 
             # 1. Retrieve
             docs = search_documents(es, q["question"])
-            print(f"  Retrieved {len(docs)} documents")
+            print(f"Retrieved {len(docs)} documents")
 
             if not docs:
-                print("  No documents retrieved, skipping.")
+                print("No documents retrieved, skipping.")
                 continue
 
             chunks = [d["content"] for d in docs]
 
             # 2. Relevance Agent
             relevance_scores, tokens = relevance_agent(q["question"], chunks)
-            print(f"  Relevance scores: {relevance_scores}")
+            print(f"Relevance scores: {relevance_scores}")
             token_count += tokens
 
             # 3. Temporal Agent
             temporal_scores, tokens = temporal_agent(q["question"], chunks)
-            print(f"  Temporal scores: {temporal_scores}")
+            print(f"Temporal scores: {temporal_scores}")
             token_count += tokens
 
             # 4. Aggregate
             if not relevance_scores:
-                print("  Could not parse relevance scores, falling back to chunk 0.")
+                print("Could not parse relevance scores, falling back to chunk 0.")
                 best_chunk_id = 0
             else:
                 best_chunk_id = aggregate(relevance_scores, temporal_scores, alpha)
 
             best_doc = docs[best_chunk_id]
-            print(f"  Best chunk ID: {best_chunk_id}, PageID: {best_doc['pageid']}")
+            print(f"Best chunk ID: {best_chunk_id}, PageID: {best_doc['pageid']}")
 
             # 5. Generate answer
             answer, tokens = generation_agent(q["question"], best_doc["content"])
             token_count += tokens
-            print(f"  Answer: {answer}")
+            print(f"Answer: {answer}")
 
             # 6. Log
             result = {
@@ -167,7 +111,7 @@ def main():
 
     total = len(all_results)
     retrieved = sum(1 for r in all_results if r["correct_article_retrieved"])
-    print(f"Results for RTA with alpha={alpha}")
+    print(f"Results for RTA with alpha = {alpha}")
     print(f"Total questions:           {total}")
     print(f"Correct article retrieved: {retrieved}/{total} ({100*retrieved/total:.1f}%)")
     print(f"Results saved to:          {OUTPUT_PATH}")

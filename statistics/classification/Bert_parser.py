@@ -15,7 +15,7 @@ if BERT:
             if line.startswith("Answer"):
                 number = line.split("Answer ")[1].split(" is")[0].strip()
                 answer = line.split(" is ")[1].strip()
-                answer = answer.split(" ")[0]  # fjern "(Bert).", "(LLM)." etc.
+                answer = answer.split(" ")[0]
                 answer = answer.strip(".").strip()
                 print(f"{number} - {answer}")
 
@@ -60,6 +60,6 @@ if GEVAL:
             if line.startswith("Answer"):
                 number = line.split("Answer ")[1].split(" is")[0].strip()
                 answer = line.split(" is ")[1].strip()
-                answer = answer.split(" ")[0]  # fjern "(Bert).", "(LLM)." etc.
+                answer = answer.split(" ")[0] 
                 answer = answer.strip(".").strip()
                 print(f"{number} - {answer}")

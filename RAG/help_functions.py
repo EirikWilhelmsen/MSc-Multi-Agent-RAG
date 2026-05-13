@@ -12,7 +12,6 @@ load_dotenv()
 
 ES_HOST = "http://localhost:9200"
 LLM_API_KEY = os.getenv("OLLAMA_API")
-#LLM_URL = "https://openwebui.ux.uis.no/ollama/api/generate"
 LLM_URL = "https://openwebui.ux.uis.no/api/chat/completions"
 INDEX_NAME = "wikipedia_snapshots"
 TOP_K = 5
@@ -173,11 +172,9 @@ def has_stabilized(prev: list[dict], curr: list[dict]) -> bool:
     curr_map = {c["chunk_id"]: normalize_answer(c["answer"]) for c in curr
                 if normalize_answer(c["answer"]) != "unsure"}
 
-    # Hvis ingen har et faktisk svar, er det ikke en meningsfull stabil tilstand
     if not curr_map:
         return False
 
-    # Sjekk kandidatene som har faktiske svar i begge runder
     common = prev_map.keys() & curr_map.keys()
     if not common:
         return False

@@ -3,7 +3,7 @@ from pathlib import Path
 import numpy as np
 
 N_SAMPLES = 500
-SEED = 42  # for reproduserbarhet
+SEED = 42  # reproducibility
 
 def main():
     parquet_path = Path("../clean_HoH_dataset/hoh_qas_240601_241201.parquet")

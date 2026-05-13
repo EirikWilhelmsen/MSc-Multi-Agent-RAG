@@ -5,11 +5,9 @@ from typing import Any, Dict, Set
 import pyarrow.parquet as pq
 
 # ==========================
-# SETT STIER HER
-# ==========================
-INPUT_PATH = "clean_HoH_dataset/hoh_qas_240601_241201.parquet"
-OUTPUT_PATH = "doc_times.json"
-SORT_DESCENDING = True  # True = nyeste først
+INPUT_PATH = "../clean_HoH_dataset/hoh_qas_240601_241201.parquet"
+OUTPUT_PATH = "../doc_times.json"
+SORT_DESCENDING = True  # newest first
 # ==========================
 
 
@@ -17,9 +15,7 @@ def to_iso_date(value: Any):
     if value is None:
         return None
 
-    # datetime/date (kommer ofte fra parquet)
     if isinstance(value, datetime):
-        # gjør timezone-safe
         if value.tzinfo is None:
             value = value.replace(tzinfo=timezone.utc)
         return value.date().isoformat()
@@ -27,19 +23,16 @@ def to_iso_date(value: Any):
     if isinstance(value, date):
         return value.isoformat()
 
-    # epoch milliseconds (int/float)
     if isinstance(value, (int, float)):
         dt = datetime.fromtimestamp(float(value) / 1000.0, tz=timezone.utc)
         return dt.date().isoformat()
 
-    # string: "2024-06-01" eller "2024-06-01T00:00:00Z"
     if isinstance(value, str):
         s = value.strip()
         if not s:
             return None
         return s[:10]  # YYYY-MM-DD
 
-    # fallback: prøv å string-caste og ta dato
     try:
         s = str(value).strip()
         if len(s) >= 10:
@@ -70,12 +63,10 @@ def main():
 
             doc_dates.setdefault(doc_id, set())
 
-            # ny dato
             new_time = to_iso_date(row.get("last_modified_time"))
             if new_time:
                 doc_dates[doc_id].add(new_time)
 
-            # gamle datoer
             outdated = row.get("outdated_infos") or []
             if isinstance(outdated, list):
                 for item in outdated:
