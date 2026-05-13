@@ -1,15 +1,12 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 import json
 import os
 import shutil
 import time
 from pathlib import Path
 
-from wiki_snapshots_by_pageID_v2 import fetch_snapshot, save_snapshot  # juster hvis nødvendig
+from wiki_snapshots_by_pageID import fetch_snapshot, save_snapshot
 
-DOC_TIMES_PATH = Path("../data/doc_times.json")  # pageid -> ["YYYY-MM-DD", ...]
+DOC_TIMES_PATH = Path("../data/doc_times.json")
 
 OUT_ROOT = Path("../data/KB_raw")
 CACHE_DIR = OUT_ROOT / "_cache"
@@ -98,7 +95,6 @@ def load_doc_times(path: Path) -> dict[int, list[str]]:
             continue
         if not isinstance(dates, list):
             continue
-        # normalize: unique + sorted (valgfritt)
         clean_dates = sorted({str(d).strip() for d in dates if str(d).strip()})
         out[pid] = clean_dates
 
@@ -151,11 +147,7 @@ def main():
                 print(f"[ERROR] {pageid} @ {ymd} -> {e}")
                 with open("../data/failed_snapshots.jsonl", "a", encoding="utf-8") as ff:
                     ff.write(json.dumps({"pageid": pageid, "date": ymd, "error": str(e)}, ensure_ascii=False) + "\n")
-            
-            # counter += 1
-            # if counter >= max_test:
-            #     print(f"Stopping after {max_test} snapshots.")
-            #     return
+
 
     print("\nDone.")
     print(f"ok={ok}, skipped={skipped}, failed={failed}")

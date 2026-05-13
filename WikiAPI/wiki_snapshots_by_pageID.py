@@ -1,37 +1,16 @@
-#!/usr/bin/env python3
-"""
-Download exact historical snapshots of a Wikipedia page using PAGEID, at given timestamps.
-
-Features:
-- Works from a starting pageid (e.g., 1000011)
-- For each timestamp: picks latest revision <= timestamp
-- Downloads wikitext + (optional) rendered HTML
-- If the selected revision is a redirect, follows the redirect chain as-of that timestamp
-- Saves per-snapshot JSON + wikitext + SUMMARY.json
-
-Usage:
-  python wiki_snapshots_by_pageid.py --pageid 1000011 --out snaps
-
-  # Custom timestamps
-  python wiki_snapshots_by_pageid.py --pageid 1000011 --snapshots 2024-11-30 2024-12-31 --out snaps
-
-Notes:
-- Timestamps are UTC and must end with 'Z' if full ISO; YYYY-MM-DD is allowed and becomes 23:59:59Z.
-"""
-
 from __future__ import annotations
 
-import argparse
 import json
 import os
 import re
-import sys
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 API = "https://en.wikipedia.org/w/api.php"
-UA = "wiki-snapshot-script/1.2 (+https://en.wikipedia.org/)"
+UA = "wiki-snapshot-script/1.3 (+https://en.wikipedia.org/)"
 
 
 # -----------------------------
@@ -42,12 +21,6 @@ def http_get_json(url: str, headers: dict | None = None, timeout: int = 60) -> d
     with urlopen(req, timeout=timeout) as r:
         data = r.read().decode("utf-8", errors="replace")
     return json.loads(data)
-
-
-def http_get_text(url: str, headers: dict | None = None, timeout: int = 60) -> str:
-    req = Request(url, headers=headers or {})
-    with urlopen(req, timeout=timeout) as r:
-        return r.read().decode("utf-8", errors="replace")
 
 
 # -----------------------------
@@ -94,10 +67,6 @@ def parse_iso8601_z(ts: str) -> str:
 # MediaWiki API calls
 # -----------------------------
 def get_revision_at_or_before_by_pageid(pageid: int, ts_z: str) -> dict:
-    """
-    Find latest revision of pageid with revision timestamp <= ts_z.
-    Returns: {pageid, title, revid, parentid, timestamp, requested_ts}
-    """
     params = {
         "action": "query",
         "format": "json",
@@ -136,9 +105,6 @@ def get_revision_at_or_before_by_pageid(pageid: int, ts_z: str) -> dict:
 
 
 def get_revision_at_or_before_by_title(title: str, ts_z: str) -> dict:
-    """
-    Same as above, but for titles (used when following redirects).
-    """
     params = {
         "action": "query",
         "format": "json",
@@ -204,34 +170,17 @@ def get_wikitext_by_revid(revid: int) -> str:
     return content
 
 
-# def get_rendered_html_by_oldid(revid: int) -> str:
-#     url = f"https://en.wikipedia.org/w/index.php?oldid={revid}"
-#     return http_get_text(url, headers={"User-Agent": UA})
-
-
 # -----------------------------
 # Redirect resolution
 # -----------------------------
 def extract_redirect_target(wikitext: str) -> str | None:
-    """
-    Detect: #REDIRECT [[Target]]
-    Returns "Target" (without fragment/pipe) or None.
-    """
     m = re.match(r"(?is)^\s*#redirect\s*\[\[([^\]|#]+)", wikitext)
     return m.group(1).strip() if m else None
 
 
-def resolve_redirect_chain_from_pageid(pageid: int, ts_z: str, max_hops: int = 5) -> tuple[dict, str, list[dict]]:
-    """
-    Starting from a pageid, find the revision <= ts_z and follow redirects (if any).
-    Returns:
-      (final_meta, final_wikitext, chain)
-
-    chain entries include both pageid + title + revid info per hop.
-    """
+def resolve_redirect_chain_from_pageid(pageid: int, ts_z: str, max_hops: int = 5):
     chain: list[dict] = []
 
-    # First hop is by pageid
     meta = get_revision_at_or_before_by_pageid(pageid, ts_z)
     wikitext = get_wikitext_by_revid(int(meta["revid"]))
     target = extract_redirect_target(wikitext)
@@ -251,7 +200,6 @@ def resolve_redirect_chain_from_pageid(pageid: int, ts_z: str, max_hops: int = 5
     if not target:
         return meta, wikitext, chain
 
-    # Follow redirects by title (because a redirect target is title-based)
     cur_title = target
     for hop in range(1, max_hops + 1):
         meta2 = get_revision_at_or_before_by_title(cur_title, ts_z)
@@ -279,93 +227,73 @@ def resolve_redirect_chain_from_pageid(pageid: int, ts_z: str, max_hops: int = 5
 
 
 # -----------------------------
-# Main
+# Public API (import-friendly)
 # -----------------------------
-def main() -> None:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--pageid", required=True, type=int, help="Wikipedia pageid (numeric), e.g. 1000005")
-    ap.add_argument("--out", default="wiki_snapshots", help="Output directory")
-    ap.add_argument(
-        "--snapshots",
-        nargs="+",
-        default=["2024-11-30T23:59:59Z", "2024-12-31T23:59:59Z"],
-        help="One or more UTC timestamps (Z). You can also pass YYYY-MM-DD (assumes 23:59:59Z).",
+@dataclass(frozen=True)
+class SnapshotResult:
+    pageid_requested: int
+    requested_timestamp_utc: str
+    resolved_title: str
+    resolved_pageid: int
+    revid: int
+    parentid: int | None
+    revision_timestamp_utc: str
+    wikipedia_oldid_url: str
+    redirect_chain: list[dict]
+    wikitext: str
+
+
+def fetch_snapshot(pageid: int, snapshot_ts: str, *, max_redirect_hops: int = 5) -> SnapshotResult:
+    ts_z = parse_iso8601_z(snapshot_ts)
+    meta, wikitext, chain = resolve_redirect_chain_from_pageid(pageid, ts_z, max_hops=max_redirect_hops)
+
+    revid = int(meta["revid"])
+    return SnapshotResult(
+        pageid_requested=int(pageid),
+        requested_timestamp_utc=ts_z,
+        resolved_title=str(meta["title"]),
+        resolved_pageid=int(meta["pageid"]),
+        revid=revid,
+        parentid=meta.get("parentid"),
+        revision_timestamp_utc=str(meta["timestamp"]),
+        wikipedia_oldid_url=f"https://en.wikipedia.org/w/index.php?oldid={revid}",
+        redirect_chain=chain,
+        wikitext=wikitext,
     )
-    # ap.add_argument("--no_html", action="store_true", help="Do not download rendered HTML (only JSON/wikitext).")
-    ap.add_argument("--max_redirect_hops", type=int, default=5, help="Maximum redirect hops per snapshot.")
-    args = ap.parse_args()
 
-    ensure_dir(args.out)
 
-    summary = {
-        "pageid_requested": args.pageid,
-        "snapshots": [],
-        "created_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "notes": "For each snapshot time, selects latest revision <= timestamp. If revision is a redirect, follows redirect chain at that time.",
+def save_snapshot(result: SnapshotResult, out_dir: str, *, base: str | None = None) -> dict[str, Any]:
+    """
+    Writes:
+      - <base>.wikitext.txt
+      - <base>.json (metadata-only + pointer to wikitext file)
+    """
+    ensure_dir(out_dir)
+
+    # Default base: YYYY-MM_<pageid>_oldid_<revid>
+    if base is None:
+        snap_tag = result.requested_timestamp_utc[:7]  # YYYY-MM
+        base = f"{snap_tag}_{result.pageid_requested}_oldid_{result.revid}"
+
+    txt_path = os.path.join(out_dir, base + ".wikitext.txt")
+    json_path = os.path.join(out_dir, base + ".json")
+
+    write_text(txt_path, result.wikitext)
+
+    record = {
+        "title": result.resolved_title,
+        "pageid_requested": result.pageid_requested,
+        "resolved_pageid": result.resolved_pageid,
+        "requested_timestamp_utc": result.requested_timestamp_utc,
+        "revision_timestamp_utc": result.revision_timestamp_utc,
+        "revid": result.revid,
+        "parentid": result.parentid,
+        "wikipedia_oldid_url": result.wikipedia_oldid_url,
+        "redirect_chain": result.redirect_chain,
+        "wikitext_file": os.path.basename(txt_path),
+        "wikitext_chars": len(result.wikitext),
+        "wikitext_lines": result.wikitext.count("\n") + 1,
     }
+    write_json(json_path, record)
 
-    for snap in args.snapshots:
-        ts_z = parse_iso8601_z(snap)
-
-        final_meta, final_wikitext, chain = resolve_redirect_chain_from_pageid(
-            args.pageid, ts_z, max_hops=args.max_redirect_hops
-        )
-
-        revid = int(final_meta["revid"])
-        title = final_meta["title"]
-        safe_title = sanitize_filename(title)
-
-        snap_tag = ts_z[:4]
-        base = f"{snap_tag}_{args.pageid}"
-
-        json_path = os.path.join(args.out, base + ".json")
-        txt_path = os.path.join(args.out, base + ".wikitext.txt")
-
-        write_text(txt_path, final_wikitext)
-        # html_path = os.path.join(args.out, base + ".html")
-
-        record = {
-            "title": title,
-            "pageid": final_meta["pageid"],
-            "requested_timestamp_utc": final_meta["requested_ts"],
-            "revision_timestamp_utc": final_meta["timestamp"],
-            "revid": revid,
-            "parentid": final_meta["parentid"],
-            "wikipedia_oldid_url": f"https://en.wikipedia.org/w/index.php?oldid={revid}",
-            "redirect_chain": chain,
-            
-            "wikitext_file": os.path.basename(txt_path),
-
-            "wikitext_chars": len(final_wikitext),
-            "wikitext_lines": final_wikitext.count("\n") + 1,
-        }
-
-        write_json(json_path, record)
-
-        summary["snapshots"].append(
-            {
-                "requested_timestamp_utc": ts_z,
-                "resolved_title": title,
-                "resolved_pageid": final_meta["pageid"],
-                "revid": revid,
-                "revision_timestamp_utc": final_meta["timestamp"],
-                "redirect_hops": max(0, len(chain) - 1),
-                "json": os.path.basename(json_path),
-                "wikitext": os.path.basename(txt_path),
-            }
-        )
-
-        print(
-            f"[OK] pageid={args.pageid} @ <= {ts_z} -> '{title}' (pageid={final_meta['pageid']}) oldid={revid}"
-        )
-
-    summary_path = os.path.join(args.out, f"PAGEID_{args.pageid}__SUMMARY.json")
-    write_json(summary_path, summary)
-    print(f"\nWrote summary: {summary_path}")
-
-
-if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        sys.exit(130)
+    return {"json": json_path, "wikitext": txt_path, "base": base}
