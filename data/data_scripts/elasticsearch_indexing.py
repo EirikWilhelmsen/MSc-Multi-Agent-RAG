@@ -2,6 +2,7 @@ from pathlib import Path
 from elasticsearch import Elasticsearch
 from elasticsearch import helpers
 from tqdm import tqdm
+import statistics
 
 # --- Configuration ---
 KB_CLEANED_ROOT = Path("../KB_cleaned")
@@ -70,26 +71,36 @@ def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVE
 
 
 def generate_actions(kb_root: Path):
-    """
-    Generator that yields bulk index actions for all chunks across all date folders.
-    Filename format: {pageid}_{revisionid}.wikitext.txt
-    """
     date_dirs = sorted(
         d for d in kb_root.iterdir()
         if d.is_dir() and d.name.startswith("2024-")
     )
+
+    total_articles = 0
+    total_chunks = 0
+    total_tokens = 0
+    chunks_per_article = []
+
     for date_dir in date_dirs:
-        date_str = date_dir.name  # e.g. "2024-06-01"
+        date_str = date_dir.name
         files = list(date_dir.glob("*.wikitext.txt"))
 
         for filepath in tqdm(files, desc=date_str, unit="articles"):
             pageid = filepath.name.split("_")[0]
-
             content = filepath.read_text(encoding="utf-8", errors="replace")
             if not content.strip():
                 continue
 
-            for chunk_idx, chunk in enumerate(chunk_text(content)):
+            chunks = chunk_text(content)
+            n_chunks = len(chunks)
+            n_tokens = len(content.split())
+
+            total_articles += 1
+            total_chunks += n_chunks
+            total_tokens += n_tokens
+            chunks_per_article.append(n_chunks)
+
+            for chunk_idx, chunk in enumerate(chunks):
                 doc_id = f"{pageid}_{date_str}_chunk{chunk_idx}"
                 yield {
                     "_index": INDEX_NAME,
@@ -102,6 +113,18 @@ def generate_actions(kb_root: Path):
                     }
                 }
 
+    print(f"\n--- Indexing Statistics ---")
+    print(f"Total articles indexed:       {total_articles}")
+    print(f"Total chunks created:         {total_chunks}")
+    print(f"Total tokens (whitespace):    {total_tokens}")
+    print(f"Avg chunks per article:       {total_chunks / total_articles:.2f}")
+    print(f"Avg tokens per article:       {total_tokens / total_articles:.2f}")
+    print(f"Median chunks per article:    {statistics.median(chunks_per_article):.1f}")
+    print(f"Max chunks (single article):  {max(chunks_per_article)}")
+    print(f"Min chunks (single article):  {min(chunks_per_article)}")
+    print(f"Chunk size setting:           {CHUNK_SIZE} tokens")
+    print(f"Chunk overlap setting:        {CHUNK_OVERLAP} tokens")
+    print(f"---------------------------")
 
 def main():
     es = get_es_client()
@@ -123,11 +146,9 @@ def main():
             print(f"[ERROR] {info}")
 
     es.indices.refresh(index=INDEX_NAME)
-
     count = es.count(index=INDEX_NAME)["count"]
     print(f"\nIndexing complete: {success} succeeded, {failed} failed")
     print(f"Total chunks in index: {count}")
-
-
+    
 if __name__ == "__main__":
     main()
