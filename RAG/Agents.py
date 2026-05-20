@@ -253,9 +253,10 @@ def verification_agent(query: str, conflict_info: dict, chunks: list[str]) -> tu
         f"  \"final_source_chunk_id\": 0\n"
         f"}}"
     )
-    #print(prompt)
+    print(prompt)
     response, tokens = call_llm(prompt, model="gorina10.llama3.3:70b")
-    
+    print("-------------------------")
+    print(response)
     cleaned = re.sub(r"```(?:json)?|```", "", response).strip()
     try:
         return json.loads(cleaned), tokens
@@ -315,7 +316,7 @@ def conflict_detection_agent(query: str, chunks: list[str]) -> tuple[dict, int]:
             "confidence": 0.0
         }, tokens
         
-def baseline_generation_agent(query: str, documents: list[dict]) -> tuple[str, int]:
+def baseline_generation_agent(query: str, documents: list[dict]) -> tuple[dict, int]:
     doc_texts = []
     for i, doc in enumerate(documents, 1):
         doc_texts.append(
@@ -324,18 +325,32 @@ def baseline_generation_agent(query: str, documents: list[dict]) -> tuple[str, i
         )
 
     documents_str = "\n\n".join(doc_texts)
-    
+        
     prompt = (
         f"Given a question and some relevant documents, generate a SHORT ANSWER "
-        f"to the question based on the document.\n\n" 
+        f"to the question based on the documents.\n\n" 
         f"# Question\n{query}\n\n"
-        f"# Text\n{documents_str}\n\n"
+        f"# Documents\n{documents_str}\n\n"
         f"# Requirements\n"
         f"- Please give a SHORT ANSWER. Use as few words as possible.\n"
         f"- If the answer is a number with more than 4 digits, use commas as thousand separators (e.g., \"1,000\" instead of \"1000\").\n"
         f"- Don't include period at the end of the answer.\n"
-        f"- If you are not sure about the answer, you MUST reply \"Unsure\".\n"
-        f"in the documents.\n\n"
-        f"# Answer"
+        f"- If you are not sure about the answer, you MUST reply \"Unsure\".\n\n"
+        f"Also, please include the document id of your chosen document"
+        f"Output ONLY valid JSON:\n"
+        f"{{\n"
+        f"  \"answer\": \"...\",\n"
+        f"  \"source_document_id\": 0\n"
+        f"}}"
     )
-    return call_llm(prompt, model="gorina10.llama3.3:70b")
+    
+    response, tokens = call_llm(prompt, model="gorina10.llama3.3:70b")
+    
+    cleaned = re.sub(r"```(?:json)?|```", "", response).strip()
+    try:
+        return json.loads(cleaned), tokens
+    except json.JSONDecodeError:
+        return {
+            "answer": "Unsure",
+            "source_document_id": None
+        }, tokens

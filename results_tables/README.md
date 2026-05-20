@@ -4,7 +4,8 @@ Generation accuracy across 500 HoH benchmark questions, classified by LLM-as-jud
 
 | Method | Acc. | *Correct* | *Outdated* | *Wrong* |
 |---|---|---|---|---|
-| Baseline RAG (k=1) | 42.20% | 211 | 143 | 146 |
+| Baseline RAG (k=1) | 42.00% | 210 | 90 | 200 |
+| Baseline RAG (k=3) | 47.80% | 239 | 94 | 167 |
 | Baseline RAG (k=5) | 50.80% | 254 | 127 | 119 |
 | RTA ($\alpha$=0.3) | **56.40%** | 282 | 94 | 124 |
 | RTA ($\alpha$=0.5) | 48.40% | 242 | 141 | 117 |
@@ -27,8 +28,9 @@ Generation accuracy across 500 HoH benchmark questions, classified by exact stri
 
 | Method | Acc. | *Correct* | *Outdated* | *Wrong* | *questions not exact matchable* |
 |---|---|---|---|---|---|
-| Baseline RAG (k=1) | 25.91% | 107 | 215 | 91 | 87 |
-| Baseline RAG (k=5) | 33.41% | 138 | 177 | 98 | 87 |
+| Baseline RAG (k=1) | 25.65% | 108 | 193 | 120 | 79 |
+| Baseline RAG (k=3) | 33.01% | 136 | 157 | 119 | 88 |
+| Baseline RAG (k=5) | 33.41% | 138 | 157 | 118 | 87 |
 | RTA ($\alpha$=0.3) | 42.62% | 176 | 127 | 110 | 87 |
 | RTA ($\alpha$=0.5) | 41.11% | 171 | 150 | 95 | 84 |
 | RTA ($\alpha$=0.7) | 39.86% | 167 | 164 | 88 | 81 |
@@ -50,8 +52,9 @@ Exposure and selection recall (%) for Updated and Outdated gold-article snapshot
 
 | Method | Exposure *Updated* | Exposure *Outdated* | Selection *Updated* | Selection *Outdated* |
 |---|---|---|---|---|
-| Baseline RAG (k=1) | -- | -- | 28.4 | 50.8 |
-| Baseline RAG (k=5) | -- | -- | 87.6 | 87.8 |
+| Baseline RAG (k=1) | 28.4 | 50.8 | 27.6 | 48.2 |
+| Baseline RAG (k=3) | 82.8 | 83.2 | 35.6 | 38.6 |
+| Baseline RAG (k=5) | 87.6 | 87.8 | 36.2 | 38.6 |
 | RTA ($\alpha$=0.3) | -- | -- | 45.0 | 30.0 |
 | RTA ($\alpha$=0.5) | -- | -- | 43.8 | 34.2 |
 | RTA ($\alpha$=0.7) | -- | -- | 42.2 | 37.8 |

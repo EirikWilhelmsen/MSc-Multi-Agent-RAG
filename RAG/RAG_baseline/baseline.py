@@ -42,13 +42,13 @@ def main():
 
             # 2. Generate
             try:
-                answer, token_count = baseline_generation_agent(q["question"], docs)
+                answer_dict, token_count = baseline_generation_agent(q["question"], docs)
                 tokens += token_count
             except Exception as e:
-                answer = f"[ERROR] {e}"
+                answer_dict = {"answer": f"[ERROR] {e}", "source_document_id": None}
                 print(f"LLM error: {e}")
 
-            print(f"Answer: {answer[:100]}")
+            #print(f"Answer: {answer_dict['answer'][:100]}")
 
             # 4. Log result
             result = {
@@ -58,7 +58,8 @@ def main():
                 "gold_title": q["title"],
                 "new_date": q["new_date"],
                 "old_date": q["old_date"],
-                "predicted_answer": answer,
+                "predicted_answer": answer_dict['answer'],
+                "source_document_id": answer_dict['source_document_id'],
                 "correct_article_retrieved": any(d["pageid"] == q["pageid"] for d in docs),
                 "retrieved_docs": [
                     {"pageid": d["pageid"], "date": d["date"], "score": d["score"]}
@@ -81,7 +82,7 @@ def main():
 
     total = len(all_results)
     retrieved = sum(1 for r in all_results if r["correct_article_retrieved"])
-    print("Top-1")
+    print("Top-5")
     print(f"Total tokens: {tokens}")
     print(f"Total questions: {total}")
     print(f"Correct article retrieved: {retrieved}/{total} ({100*retrieved/total:.1f}%)")

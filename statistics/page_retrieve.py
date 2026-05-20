@@ -1,7 +1,7 @@
 import json
 import csv
 from helper_functions.helper_functions import (
-    count_baseline, count_RCA, count_RCDS, count_RCO, count_RTA
+    count_baseline, count_RCA, count_RCDS, count_RCO, count_RTA, count_baseline_selected
 )
 
 class ModelResults:
@@ -43,7 +43,8 @@ class ModelResults:
             found_outdated = False
 
             if self.model == "Baseline": 
-                found_updated, found_outdated = count_baseline(entry["retrieved_docs"], gold_pageid, new_date, old_date)
+                selected_document_id = entry["source_document_id"]
+                found_updated, found_outdated = count_baseline_selected(entry["retrieved_docs"], selected_document_id, gold_pageid, new_date, old_date)
             else: 
                 if gold_pageid == entry["best_chunk_pageid"]:
                     if new_date == entry["best_chunk_date"]:
@@ -102,7 +103,7 @@ if __name__ == "__main__":
                 if version == 0:
                     continue
                 results = ModelResults(model_name, version, exact_model, setup)
-                counts = results.exposed_recall()
+                counts = results.selected_recall()
                 rows.append({
                     "model": model_name,
                     "exact_model": exact_model,
@@ -112,9 +113,9 @@ if __name__ == "__main__":
                 })
                 print(f"{model_name}/{exact_model}" + (f"/{setup}" if setup else ""))
     
-    with open("test_used_results_2.csv", "w", newline="") as f:
+    with open("new_baselines.csv", "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=rows[0].keys())
         writer.writeheader()
         writer.writerows(rows)
     
-    print(f"\nWrote {len(rows)} rows to test_used_results_2.csv")
+    print(f"\nWrote {len(rows)} rows to new_baselines.csv")

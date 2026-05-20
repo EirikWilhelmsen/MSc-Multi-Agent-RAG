@@ -14,7 +14,7 @@ class ModelResults:
     def load(self):
         path = self._get_path()
         self.data = self._read_json(path)
-        self.ground_truth = self._read_csv("GROUND_TRUTH/500_hoh_questions.csv")
+        self.ground_truth = self._read_csv("../data/500Q/500_hoh_questions.csv")
     
     def _read_csv(self, path):
         with open(path, "r") as f:
@@ -88,9 +88,9 @@ if __name__ == "__main__":
                 })
                 print(f"{model_name}/{exact_model}" + (f"/{setup}" if setup else ""))
     
-    with open("new_exact_match_all_results_2.csv", "w", newline="") as f:
+    with open("new_baselines.csv", "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=rows[0].keys())
         writer.writeheader()
         writer.writerows(rows)
     
-    print(f"\nWrote {len(rows)} rows to new_exact_match_all_results.csv")
+    print(f"\nWrote {len(rows)} rows to new_baselines.csv")

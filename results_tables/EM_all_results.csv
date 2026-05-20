@@ -1,6 +1,7 @@
 model,exact_model,setup,version,correct,outdated,wrong,unable_exact_match
-Baseline,Baseline_P1,,20,107,215,91,87
-Baseline,Baseline_L5,,21,138,177,98,87
+Baseline,Baseline_L5,,27,138,157,118,87
+Baseline,Baseline_L3,,26,136,157,119,88
+Baseline,Baseline_P1,,25,108,193,120,79
 RTA,RTA_03,,9,176,127,110,87
 RTA,RTA_05,,11,171,150,95,84
 RTA,RTA_07,,8,167,164,88,81

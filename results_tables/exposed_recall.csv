@@ -1,5 +1,6 @@
 model,exact_model,setup,version,found_updated,found_outdated
 Baseline,Baseline_L5,,21,438,439
+Baseline,Baseline_L3,,20,414,416
 Baseline,Baseline_P1,,20,142,254
 RCA,RCA,RCA_MV,39,411,417
 RCA,RCA,RCA_C,25,411,417

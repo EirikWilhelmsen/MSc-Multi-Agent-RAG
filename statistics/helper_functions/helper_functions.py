@@ -79,14 +79,14 @@ def create_graph(counts, llm_counts, title, path):
     plt.close()
     
 def normalize(text: str) -> str:
-    text = text.lower().strip()
+    text = str(text).lower().strip()
     text = re.sub(r"[,\.\-\(\)]", "", text)  # fjern spesialtegn
     text = re.sub(r"\s+", " ", text)          # normaliser whitespace
     return text
 
 def extract_number(text: str) -> float | None:
     """Ekstraherer første tall fra tekst, støtter også tekstlige tall."""
-    text_lower = text.lower().strip()
+    text_lower = str(text).lower().strip()
 
     if re.search(r'\d+:\d+', text_lower):
         return None
@@ -113,7 +113,7 @@ def extract_number(text: str) -> float | None:
 def numeric_ground_truth_match(generated, current_gt, outdated_gt):
     gen_num = extract_number(generated)
     if gen_num is None:
-        return None  # Ingen tall → la LLM-judge håndtere
+        return None  # no number
 
     curr_num = extract_number(current_gt)
     outd_num = extract_number(outdated_gt)
@@ -179,7 +179,7 @@ def classify_answer_LLM(predicted: str, new_answer: str, old_answer: str, questi
     return "wrong"
 
 def is_unsure(predicted: str) -> bool:
-    predicted_lower = predicted.lower()
+    predicted_lower = str(predicted).lower()
     patterns = [" or ", " and/or ", " either ", "not sure", "unsure", "unclear"]
     return any(p in predicted_lower for p in patterns)
 
@@ -192,6 +192,19 @@ def count_baseline(docs, gold_pageid, new_date, old_date) -> tuple[bool, bool]:
                 found_updated = True
             elif doc["date"] == old_date:
                 found_outdated = True
+    return found_updated, found_outdated
+
+def count_baseline_selected(docs, selected_document_id, gold_pageid, new_date, old_date) -> tuple[bool, bool]:
+    found_updated = False
+    found_outdated = False
+    if selected_document_id is None:
+        return False, False
+    doc = docs[selected_document_id - 1]
+    if doc["pageid"] == gold_pageid:
+        if doc["date"] == new_date:
+            found_updated = True
+        elif doc["date"] == old_date:
+            found_outdated = True
     return found_updated, found_outdated
 
 def count_RCA(candidates, docs, gold_pageid, new_date, old_date) -> tuple[bool, bool]:

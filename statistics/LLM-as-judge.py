@@ -82,9 +82,9 @@ if __name__ == "__main__":
                 })
                 print(f"{model_name}/{exact_model}" + (f"/{setup}" if setup else ""))
     
-    with open("LLM_match_all_results_2.csv", "w", newline="") as f:
+    with open("new_baselines.csv", "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=rows[0].keys())
         writer.writeheader()
         writer.writerows(rows)
     
-    print(f"\nWrote {len(rows)} rows to exact_match_all_results.csv")
+    print(f"\nWrote {len(rows)} rows to new_baselines.csv")
