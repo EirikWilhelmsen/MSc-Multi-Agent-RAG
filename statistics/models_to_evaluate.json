@@ -3,5 +3,31 @@
         "Baseline_L5": 27,
         "Baseline_L3": 26,
         "Baseline_P1": 25
+    },
+    "RCA": {
+        "RCA": {
+            "RCA_C": 25,
+            "RCA_MV": 39,
+            "RCA_R": 26
+        },
+        "RCA_T": {
+            "RCA_C": 32,
+            "RCA_MV": 31,
+            "RCA_R": 34
+        }
+    },
+    "RCDS": {
+        "RCDS": 5,
+        "RCDS_D": 9,
+        "RCDS_TS": 15
+    },
+    "RCO": {
+        "RCO_T1": 18,
+        "RCO_T07": 17
+    },
+    "RTA": {
+        "RTA_03": 9,
+        "RTA_05": 11,
+        "RTA_07": 8
     }
 }

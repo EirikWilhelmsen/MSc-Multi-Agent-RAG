@@ -8,7 +8,7 @@ import requests
 load_dotenv()
 LLM_API_KEY = os.getenv("OLLAMA_API")
 LLM_URL = "https://openwebui.ux.uis.no/api/chat/completions"
-LLM_MODEL = "qwen3:0.6b"
+LLM_MODEL = "gorina10.llama3.3:70b"
 
 os.environ["CONFIDENT_METRIC_LOGGING_VERBOSE"] = "0"
 

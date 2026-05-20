@@ -4,23 +4,23 @@ Generation accuracy across 500 HoH benchmark questions, classified by LLM-as-jud
 
 | Method | Acc. | *Correct* | *Outdated* | *Wrong* |
 |---|---|---|---|---|
-| Baseline RAG (k=1) | 42.00% | 210 | 90 | 200 |
-| Baseline RAG (k=3) | 47.80% | 239 | 94 | 167 |
-| Baseline RAG (k=5) | 50.80% | 254 | 127 | 119 |
-| RTA ($\alpha$=0.3) | **56.40%** | 282 | 94 | 124 |
-| RTA ($\alpha$=0.5) | 48.40% | 242 | 141 | 117 |
-| RTA ($\alpha$=0.7) | 54.00% | 270 | 105 | 125 |
-| RCA (Majority vote) | 44.80% | 224 | 153 | 123 |
-| RCA (Confidence Based) | 53.20% | 266 | 101 | 133 |
-| RCA (Random) | 43.60% | 218 | 104 | **178** |
-| RCA_T (Majority vote) | 56.20% | 281 | 103 | 116 |
-| RCA_T (Confidence based) | **56.40%** | 282 | 91 | 127 |
-| RCA_T (Random) | 43.00% | 215 | **114** | **171** |
-| RCO (t=1) | 55.20% | 276 | 91 | 133 |
-| RCO (t=0.7) | **56.40%** | 282 | 92 | 126 |
-| RCDS | 54.80% | 274 | 103 | 123 |
-| RCDS_D | 53.00% | 265 | 103 | 132 |
-| RCDS_DS | 52.20% | 261 | 103 | 136 |
+| Baseline RAG (k=1) | 33.6% | 168 | 134 | 198 |
+| Baseline RAG (k=3) | 42.2% | 211 | 110 | 179 |
+| Baseline RAG (k=5) | 42.8% | 214 | 108 | 178 |
+| RTA (a=0.3) | 50.4% | 252 | 76 | 172 |
+| RTA (a=0.5) | 48.4% | 242 | 94 | 164 |
+| RTA (a=0.7) | 47.4% | 237 | 105 | 158 |
+| RCA (Majority vote) | 39.2% | 196 | 141 | 163 |
+| RCA (Confidence based) | 39.2% | 196 | 133 | 171 |
+| RCA (Random) | 35.0% | 175 | 90 | 235 |
+| RCA_T (Majority vote) | 49.4% | 247 | 99 | 154 |
+| RCA_T (Confidence based) | **53.0%** | 265 | 86 | 149 |
+| RCA_T (Random) | 33.4% | 167 | 75 | 258 |
+| RCO (t=1) | 49.6% | 248 | 86 | 166 |
+| RCO (t=0.7) | 51.6% | 258 | 82 | 160 |
+| RCDS | 43.8% | 219 | 111 | 170 |
+| RCDS_D | 44.0% | 220 | 109 | 171 |
+| RCDS_TS | 47.2% | 236 | 83 | 181 |
 
 ---
 
