@@ -104,13 +104,7 @@ cd RAG/MA-RAG && python RCA.py
 
 Each script writes a versioned `.jsonl` result file to `results/`.
 
-To run all architectures sequentially in a detached `tmux` session (useful for remote servers):
-
-```bash
-./run_all.sh
-```
-
-Logs are written to `logs/<timestamp>/<architecture>.log`. Attach with `tmux attach -t rag_runs`.
+To run all architectures sequentially in a detached `tmux` session (useful for remote servers)
 
 ### Evaluation
 
