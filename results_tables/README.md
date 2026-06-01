@@ -55,17 +55,17 @@ Exposure and selection recall (%) for Updated and Outdated gold-article snapshot
 | Baseline RAG (k=1) | 28.4 | 50.8 | 27.6 | 48.2 |
 | Baseline RAG (k=3) | 82.8 | 83.2 | 35.6 | 38.6 |
 | Baseline RAG (k=5) | 87.6 | 87.8 | 36.2 | 38.6 |
-| RTA ($\alpha$=0.3) | -- | -- | 45.0 | 30.0 |
-| RTA ($\alpha$=0.5) | -- | -- | 43.8 | 34.2 |
-| RTA ($\alpha$=0.7) | -- | -- | 42.2 | 37.8 |
-| RCA (Confidence based) | 82.2 | 83.4 | 36.4 | 45.0 |
-| RCA (Majority vote) | 82.2 | 83.4 | 33.8 | 46.0 |
-| RCA (Random) | 82.2 | 83.4 | 32.8 | 31.8 |
-| RCA_T (Confidence based) | 82.2 | 83.4 | 47.4 | 30.6 |
-| RCA_T (Majority vote) | 82.2 | 83.4 | 43.4 | 35.0 |
-| RCA_T (Random) | 82.2 | 83.4 | 30.2 | 32.0 |
+| RTA ($\alpha$=0.3) | 87.6 | 87.8 | 45.0 | 30.0 |
+| RTA ($\alpha$=0.5) | 87.6 | 87.8 | 43.8 | 34.2 |
+| RTA ($\alpha$=0.7) | 87.6 | 87.8 | 42.2 | 37.8 |
+| RCA (Majority vote) | 82.8 | 84.2 | 33.8 | 46.0 |
+| RCA (Confidence based) | 82.8 | 84.2 | 36.4 | 45.0 |
+| RCA (Random) | 82.8 | 84.2 | 32.8 | 31.8 |
+| RCA_T (Majority vote) | 78.4 | 80.0 | 43.4 | 35.0 |
+| RCA_T (Confidence based) | 78.4 | 80.0| 47.4 | 30.6 |
+| RCA_T (Random) | 78.4 | 80.0 | 30.2 | 32.0 |
 | RCO (t=1) | 57.8 | 59.4 | 47.4 | 32.0 |
 | RCO (t=0.7) | 57.4 | 59.6 | 48.8 | 30.6 |
-| RCDS | 82.2 | 83.4 | 40.5 | 37.6 |
-| RCDS_D | 82.2 | 83.4 | 41.2 | 36.4 |
-| RCDS_DS | 82.2 | 83.4 | 41.4 | 33.6 |
+| RCDS | 82.8 | 84.2 | 40.5 | 37.6 |
+| RCDS_D | 82.8 | 84.2 | 41.2 | 36.4 |
+| RCDS_DT | 82.2 | 80.0 | 41.4 | 33.6 |
